@@ -6,7 +6,16 @@ weather description.
 
 ## [Unreleased]
 
-## [0.1.0] "Fair" — In Progress
+## [0.2.0] "Breeze" — In Progress
+### Added
+- Animated SVG thermometer (vertical mercury tube)
+- Mercury color shifts from steel-blue (cold) to red (warm)
+- Brass daily-high marker, reading Home Assistant's own history —
+  updates instantly when a new high is set, reconciles against the
+  full window every 10 minutes
+- Dual theme support, tap-to-history, shadow DOM style isolation
+
+## [0.1.0] "Fair" — Complete
 ### Added
 - Animated SVG barometer with damped needle movement
 - Pressure trend indicator (rising / falling / steady)
