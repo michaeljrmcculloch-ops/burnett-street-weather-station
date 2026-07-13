@@ -14,3 +14,5 @@ weather description.
 - Brass/Oak theme
 - Tap-to-open pressure history popup
 - Responsive layout, Raspberry Pi friendly rendering
+- Ghost needle showing pressure from N hours ago (default 5), read
+  directly from Home Assistant's own history — no extra sensor needed

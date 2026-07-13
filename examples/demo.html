@@ -1,3 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Burnett Street Weather Station — Barometer Preview</title>
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #2b2620;
+    font-family: Georgia, 'Times New Roman', serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 16px;
+    box-sizing: border-box;
+  }
+  h1 { color: #e8dcc0; font-size: 1.1em; font-weight: normal; letter-spacing: 1px; }
+  .stage { display: flex; gap: 40px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+  .card-slot { width: 300px; }
+  .controls {
+    background: #3a332a;
+    border-radius: 12px;
+    padding: 20px;
+    color: #e8dcc0;
+    width: 260px;
+  }
+  .controls label { display: block; margin-top: 14px; font-size: 0.85em; }
+  .controls input[type=range] { width: 100%; }
+  .controls select, .controls button {
+    width: 100%; padding: 6px; margin-top: 4px; border-radius: 6px; border: none;
+  }
+  .controls button { margin-top: 14px; cursor: pointer; background: #8a1f1f; color: white; }
+  .controls hr { border: none; border-top: 1px solid #55483a; margin: 18px 0; }
+  ha-card { display: block; }
+</style>
+</head>
+<body>
+  <h1>Burnett Street Weather Station — Live Preview (simulated Home Assistant)</h1>
+  <div class="stage">
+    <div class="card-slot" id="card-slot-oak"></div>
+    <div class="card-slot" id="card-slot-obs"></div>
+    <div class="controls">
+      <strong>Simulate pressure</strong>
+      <label>Pressure now (hPa): <span id="pressure-val">1013</span></label>
+      <input type="range" id="pressure-slider" min="950" max="1050" value="1013" step="0.5">
+      <label>Trend
+        <select id="trend-select">
+          <option value="rising">Rising</option>
+          <option value="steady" selected>Steady</option>
+          <option value="falling">Falling</option>
+        </select>
+      </label>
+      <button id="storm-btn">Simulate a storm (fast drop)</button>
+      <hr>
+      <strong>Ghost needle (5h ago)</strong>
+      <label>Pressure 5h ago (hPa): <span id="ghost-val">1013</span></label>
+      <input type="range" id="ghost-slider" min="950" max="1050" value="1013" step="0.5">
+      <button id="ghost-refresh-btn">Refresh ghost needle now</button>
+    </div>
+  </div>
+
+<script>
+// Minimal stand-in for ha-card so the component renders outside real HA
+customElements.define('ha-card', class extends HTMLElement {});
+</script>
+<script type="module">
+  // --- Inlined card source (same as src/burnett-vintage-barometer.js) ---
 /**
  * Burnett Street Weather Station — Vintage Barometer Card
  * -----------------------------------------------------------
@@ -283,3 +351,99 @@ window.customCards.push({
   name: "Burnett Vintage Barometer",
   description: "An antique, animated SVG barometer for Home Assistant.",
 });
+
+</script>
+<script type="module">
+  // Fake Home Assistant "history/period" API so the ghost needle has
+  // something to fetch. In real HA, hass.callApi already does this.
+  let ghostPressure = 1013;
+  function fakeCallApi(method, path) {
+    if (path.startsWith('history/period')) {
+      return Promise.resolve([[{ state: String(ghostPressure) }]]);
+    }
+    return Promise.resolve([]);
+  }
+
+  function makeCard(theme, entityId) {
+    const card = document.createElement('burnett-vintage-barometer');
+    card.setConfig({
+      entity: entityId,
+      trend_entity: 'sensor.burnett_pressure_trend',
+      name: 'Burnett Street',
+      subtitle: theme === 'observatory' ? 'Night Watch' : 'Weather Station',
+      established: '2026',
+      theme: theme,
+      show_ghost_needle: true,
+      ghost_hours: 5,
+    });
+    return card;
+  }
+
+  const oakCard = makeCard('classic_oak', 'sensor.demo_pressure');
+  const obsCard = makeCard('observatory', 'sensor.demo_pressure');
+  document.getElementById('card-slot-oak').appendChild(oakCard);
+  document.getElementById('card-slot-obs').appendChild(obsCard);
+
+  function pushState(value, trend) {
+    const hass = {
+      states: {
+        'sensor.demo_pressure': { state: String(value) },
+        'sensor.burnett_pressure_trend': { state: trend },
+      },
+      callApi: fakeCallApi,
+    };
+    oakCard.hass = hass;
+    obsCard.hass = hass;
+  }
+
+  document.addEventListener('hass-more-info', (e) => {
+    alert('In real Home Assistant, tapping the dial opens the history graph for:\n' + e.detail.entityId);
+  });
+
+  const slider = document.getElementById('pressure-slider');
+  const label = document.getElementById('pressure-val');
+  const trendSelect = document.getElementById('trend-select');
+  const ghostSlider = document.getElementById('ghost-slider');
+  const ghostLabel = document.getElementById('ghost-val');
+
+  function update() {
+    label.textContent = parseFloat(slider.value).toFixed(1);
+    pushState(slider.value, trendSelect.value);
+  }
+  slider.addEventListener('input', update);
+  trendSelect.addEventListener('change', update);
+
+  ghostSlider.addEventListener('input', () => {
+    ghostPressure = parseFloat(ghostSlider.value);
+    ghostLabel.textContent = ghostPressure.toFixed(1);
+  });
+
+  // The real card only checks its history every 10 minutes — for this
+  // demo we force an immediate re-check so you can see it respond right away.
+  document.getElementById('ghost-refresh-btn').addEventListener('click', () => {
+    oakCard._lastGhostFetch = 0;
+    obsCard._lastGhostFetch = 0;
+    oakCard._maybeFetchGhostValue();
+    obsCard._maybeFetchGhostValue();
+  });
+
+  document.getElementById('storm-btn').addEventListener('click', () => {
+    trendSelect.value = 'falling';
+    let v = parseFloat(slider.value);
+    const drop = setInterval(() => {
+      v -= 2;
+      if (v <= 970) { clearInterval(drop); v = 970; }
+      slider.value = v;
+      update();
+    }, 250);
+  });
+
+  update();
+  // Trigger an initial ghost fetch so the second hand shows on load.
+  setTimeout(() => {
+    oakCard._maybeFetchGhostValue();
+    obsCard._maybeFetchGhostValue();
+  }, 300);
+</script>
+</body>
+</html>
