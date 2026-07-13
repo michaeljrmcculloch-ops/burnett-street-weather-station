@@ -13,7 +13,15 @@ weather description.
 - Brass daily-high marker, reading Home Assistant's own history —
   updates instantly when a new high is set, reconciles against the
   full window every 10 minutes
+- Animated SVG hygrometer (round dial, antique Dry/Fresh/Comfortable/
+  Humid/Damp zone labels instead of numbers)
+- Animated SVG wind compass — single-arrowhead weathervane style arrow
+  rotates over a fixed compass rose, with speed/gust text readout
+- Animated SVG wind speed gauge with peak-gust needle (reads history,
+  same instant-rise + periodic-reconcile pattern as the daily high
+  marker), fully configurable unit system (mph, km/h, or any label)
 - Dual theme support, tap-to-history, shadow DOM style isolation
+  across all four new gauges
 
 ## [0.1.0] "Fair" — Complete
 ### Added

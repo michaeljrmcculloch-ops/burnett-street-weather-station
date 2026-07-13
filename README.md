@@ -8,18 +8,41 @@ mechanical needle movement, built as modular SVG custom cards.
 
 ## Status
 
-🚧 **v0.1 "Fair"** — animated SVG barometer, in progress.
+🚧 **v0.2 "Breeze"** — thermometer, hygrometer, wind compass, and wind
+speed gauges added alongside the v0.1 barometer.
 See [`CHANGELOG.md`](CHANGELOG.md) for the full roadmap.
 
 ## What's in this release
 
+**Barometer**
 - Live animated needle (damped, eases into position)
 - Antique brass-and-cream dial, drawn entirely in SVG
 - Automatic weather text (Stormy → Rain → Change → Fair → Set Fair)
-- Pressure trend arrow via an optional trend sensor
+- Ghost needle showing pressure from 5 hours ago (configurable),
+  read directly from Home Assistant's history — no extra sensor needed
+- Color-coded pressure trend (rising/falling/steady)
+
+**Thermometer**
+- Vertical mercury-tube style, color shifts blue (cold) → red (warm)
+- Brass daily-high marker (configurable window), instant-rise +
+  periodic history reconciliation
+
+**Hygrometer**
+- Round dial with antique Dry/Fresh/Comfortable/Humid/Damp zone labels
+
+**Wind compass**
+- Single-arrowhead weathervane style needle rotates over a fixed
+  compass rose; speed and gust shown as text
+
+**Wind speed**
+- Numbered dial (any unit — mph, km/h, etc.) with a peak-gust needle
+  using the same instant-rise history pattern as the thermometer
+
+**All gauges**
 - Tap the dial to open Home Assistant's built-in history graph
 - Configurable plaque (station name), independent of the project name
 - Two themes: `classic_oak` and `observatory`
+- Shadow DOM style isolation — safe to place multiple gauges together
 
 ## Quick start
 

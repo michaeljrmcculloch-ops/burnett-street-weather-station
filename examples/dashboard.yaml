@@ -15,3 +15,40 @@ views:
         unit: hPa
         theme: classic_oak       # or "observatory"
         decimals: 1
+      - type: custom:burnett-vintage-thermometer
+        entity: sensor.gw3000a_outdoor_temperature
+        name: Burnett Street
+        subtitle: Weather Station
+        established: "2026"
+        min_temp: -10
+        max_temp: 40
+        unit: °C
+        theme: classic_oak
+        show_daily_high: true
+        high_window_hours: 24
+      - type: custom:burnett-vintage-hygrometer
+        entity: sensor.gw3000a_humidity
+        name: Burnett Street
+        subtitle: Weather Station
+        established: "2026"
+        theme: classic_oak
+      - type: custom:burnett-vintage-wind-compass
+        entity: sensor.gw3000a_wind_direction
+        speed_entity: sensor.gw3000a_wind_speed
+        gust_entity: sensor.gw3000a_wind_gust
+        name: Burnett Street
+        subtitle: Weather Station
+        established: "2026"
+        speed_unit: mph
+        theme: classic_oak
+      - type: custom:burnett-vintage-wind-speed
+        entity: sensor.gw3000a_wind_speed
+        gust_entity: sensor.gw3000a_wind_gust
+        name: Burnett Street
+        subtitle: Weather Station
+        established: "2026"
+        max_speed: 80
+        speed_unit: mph
+        theme: classic_oak
+        show_peak_gust: true
+        peak_gust_window_minutes: 30

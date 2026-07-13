@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Burnett Street Weather Station — Hygrometer Preview</title>
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #2b2620;
+    font-family: Georgia, 'Times New Roman', serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 16px;
+    box-sizing: border-box;
+  }
+  h1 { color: #e8dcc0; font-size: 1.1em; font-weight: normal; letter-spacing: 1px; }
+  .stage { display: flex; gap: 40px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+  .card-slot { width: 300px; }
+  .controls {
+    background: #3a332a;
+    border-radius: 12px;
+    padding: 20px;
+    color: #e8dcc0;
+    width: 260px;
+  }
+  .controls label { display: block; margin-top: 14px; font-size: 0.85em; }
+  .controls input[type=range] { width: 100%; }
+</style>
+</head>
+<body>
+  <h1>Burnett Street Weather Station — Hygrometer Preview</h1>
+  <div class="stage">
+    <div class="card-slot" id="card-slot-oak"></div>
+    <div class="card-slot" id="card-slot-obs"></div>
+    <div class="controls">
+      <strong>Simulate humidity</strong>
+      <label>Relative humidity (%): <span id="rh-val">50</span></label>
+      <input type="range" id="rh-slider" min="0" max="100" value="50" step="1">
+    </div>
+  </div>
+
+<script>
+customElements.define('ha-card', class extends HTMLElement {});
+</script>
+<script type="module">
+/**
+ * Burnett Street Weather Station — Vintage Hygrometer Card
+ * -----------------------------------------------------------
+ * A hand-drawn SVG antique hygrometer for Home Assistant.
+ * Milestone: v0.2 "Breeze"
+ *
+ * Config example:
+ * type: custom:burnett-vintage-hygrometer
+ * entity: sensor.gw3000a_humidity
+ * name: Burnett Street
+ * subtitle: Weather Station
+ * established: "2026"
+ * theme: classic_oak   # or "observatory"
+ */
+
+class BurnettVintageHygrometer extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+  }
+
+  setConfig(config) {
+    if (!config.entity) {
+      throw new Error("You must set an 'entity' (a humidity sensor).");
+    }
+    this._config = {
+      unit: "%",
+      theme: "classic_oak",
+      name: "Burnett Street",
+      subtitle: "Weather Station",
+      established: "2026",
+      decimals: 0,
+      ...config,
+    };
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    const stateObj = hass.states[this._config.entity];
+    if (!stateObj) return;
+
+    const value = parseFloat(stateObj.state);
+    if (isNaN(value)) return;
+
+    this._updateNeedle(value);
+    this._updateReadout(value);
+  }
+
+  _render() {
+    const isDark = this._config.theme === "observatory";
+    const face = isDark ? "#1b1f24" : "#f4ecd8";
+    const rim = isDark ? "#8a7a4f" : "#b08d57";
+    const text = isDark ? "#d8c99a" : "#3a2c1a";
+    this._themeText = text;
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display: block; }
+        ha-card {
+          display: block;
+          background: ${isDark ? "#0f1216" : "#fffaf0"};
+          border-radius: 16px;
+          padding: 16px;
+          font-family: Georgia, 'Times New Roman', serif;
+          text-align: center;
+        }
+        .plaque { color: ${text}; font-size: 1.1em; letter-spacing: 1px; margin-bottom: 4px; }
+        .plaque .subtitle { font-size: 0.7em; opacity: 0.75; display: block; }
+        .dial-wrap { cursor: pointer; }
+        .needle {
+          transform-origin: 100px 100px;
+          transition: transform 1.2s cubic-bezier(0.34, 1.2, 0.4, 1);
+        }
+        .readout { color: ${text}; font-size: 1.4em; margin-top: 6px; }
+        .zone-label { font-size: 0.9em; opacity: 0.8; }
+      </style>
+      <ha-card>
+        <div class="plaque">
+          ${this._config.name}
+          <span class="subtitle">${this._config.subtitle} · Est. ${this._config.established}</span>
+        </div>
+        <div class="dial-wrap">
+          <svg viewBox="0 0 200 200" width="100%" style="max-width:280px">
+            <circle cx="100" cy="100" r="95" fill="${face}" stroke="${rim}" stroke-width="6"/>
+            <circle cx="100" cy="100" r="80" fill="none" stroke="${rim}" stroke-width="1" opacity="0.5"/>
+            ${this._drawTicks(text)}
+            <g class="needle" id="needle">
+              <line x1="100" y1="100" x2="100" y2="30" stroke="#3a5f8a" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="100" cy="100" r="5" fill="#3a5f8a"/>
+            </g>
+          </svg>
+        </div>
+        <div class="readout" id="readout">-- ${this._config.unit}</div>
+        <div class="zone-label" id="zone-label"></div>
+      </ha-card>
+    `;
+
+    this.shadowRoot.querySelector(".dial-wrap").addEventListener("click", () => {
+      this.dispatchEvent(
+        new CustomEvent("hass-more-info", {
+          detail: { entityId: this._config.entity },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    });
+  }
+
+  _drawTicks(color) {
+    let ticks = "";
+    // 0–100% across the same 240° sweep as the barometer, with
+    // old-fashioned "Dry / Comfortable / Damp" zone labels instead
+    // of numbers, matching antique hygrometer faces.
+    const labels = ["Dry", "Fresh", "Comfortable", "Humid", "Damp"];
+    for (let i = 0; i <= 40; i++) {
+      const angle = -120 + (i * 240) / 40;
+      const rad = (angle * Math.PI) / 180;
+      const long = i % 10 === 0;
+      const r1 = long ? 68 : 74;
+      const x1 = 100 + r1 * Math.sin(rad);
+      const y1 = 100 - r1 * Math.cos(rad);
+      const x2 = 100 + 80 * Math.sin(rad);
+      const y2 = 100 - 80 * Math.cos(rad);
+      ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${long ? 2 : 1}" opacity="${long ? 0.9 : 0.5}"/>`;
+    }
+    labels.forEach((label, i) => {
+      const angle = -120 + (i * 240) / (labels.length - 1);
+      const rad = (angle * Math.PI) / 180;
+      const x = 100 + 55 * Math.sin(rad);
+      const y = 100 - 55 * Math.cos(rad);
+      ticks += `<text x="${x}" y="${y}" fill="${color}" font-size="7" text-anchor="middle">${label}</text>`;
+    });
+    return ticks;
+  }
+
+  _updateNeedle(value) {
+    const clamped = Math.min(Math.max(value, 0), 100);
+    const fraction = clamped / 100;
+    const angle = -120 + fraction * 240;
+    const needle = this.shadowRoot.querySelector("#needle");
+    if (needle) needle.style.transform = `rotate(${angle}deg)`;
+
+    const zoneLabel = this.shadowRoot.querySelector("#zone-label");
+    if (zoneLabel) {
+      let zone;
+      if (clamped < 30) zone = "Dry";
+      else if (clamped < 45) zone = "Fresh";
+      else if (clamped < 60) zone = "Comfortable";
+      else if (clamped < 75) zone = "Humid";
+      else zone = "Damp";
+      zoneLabel.textContent = zone;
+    }
+  }
+
+  _updateReadout(value) {
+    const readout = this.shadowRoot.querySelector("#readout");
+    if (readout) {
+      readout.textContent = `${value.toFixed(this._config.decimals)}${this._config.unit}`;
+    }
+  }
+
+  getCardSize() {
+    return 4;
+  }
+}
+
+customElements.define("burnett-vintage-hygrometer", BurnettVintageHygrometer);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "burnett-vintage-hygrometer",
+  name: "Burnett Vintage Hygrometer",
+  description: "An antique, animated SVG hygrometer for Home Assistant.",
+});
+
+</script>
+<script type="module">
+  function makeCard(theme) {
+    const card = document.createElement('burnett-vintage-hygrometer');
+    card.setConfig({
+      entity: 'sensor.demo_humidity',
+      name: 'Burnett Street',
+      subtitle: theme === 'observatory' ? 'Night Watch' : 'Weather Station',
+      established: '2026',
+      theme: theme,
+    });
+    return card;
+  }
+  const oakCard = makeCard('classic_oak');
+  const obsCard = makeCard('observatory');
+  document.getElementById('card-slot-oak').appendChild(oakCard);
+  document.getElementById('card-slot-obs').appendChild(obsCard);
+
+  document.addEventListener('hass-more-info', (e) => {
+    alert('In real Home Assistant, tapping opens the history graph for:\n' + e.detail.entityId);
+  });
+
+  const slider = document.getElementById('rh-slider');
+  const label = document.getElementById('rh-val');
+  function update() {
+    label.textContent = slider.value;
+    const hass = { states: { 'sensor.demo_humidity': { state: slider.value } } };
+    oakCard.hass = hass;
+    obsCard.hass = hass;
+  }
+  slider.addEventListener('input', update);
+  update();
+</script>
+</body>
+</html>
