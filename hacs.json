@@ -1,0 +1,7 @@
+{
+  "name": "Burnett Street Weather Station",
+  "render_readme": true,
+  "content_in_root": false,
+  "filename": "burnett-vintage-barometer.js",
+  "homeassistant": "2024.1.0"
+}

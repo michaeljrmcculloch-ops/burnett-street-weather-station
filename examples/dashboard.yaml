@@ -1,0 +1,17 @@
+title: Weather Station
+views:
+  - title: Weather Station
+    path: weather-station
+    icon: mdi:weather-partly-cloudy
+    cards:
+      - type: custom:burnett-vintage-barometer
+        entity: sensor.gw3000a_relative_pressure
+        trend_entity: sensor.burnett_pressure_trend   # optional, see docs
+        name: Burnett Street
+        subtitle: Weather Station
+        established: "2026"
+        min_pressure: 950
+        max_pressure: 1050
+        unit: hPa
+        theme: classic_oak       # or "observatory"
+        decimals: 1
