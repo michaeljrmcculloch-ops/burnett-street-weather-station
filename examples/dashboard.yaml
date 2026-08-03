@@ -52,3 +52,26 @@ views:
         theme: classic_oak
         show_peak_gust: true
         peak_gust_window_minutes: 30
+      - type: custom:burnett-vintage-rain-gauge
+        entity: sensor.gw3000a_daily_rain
+        rate_entity: sensor.gw3000a_rain_rate
+        name: Burnett Street
+        subtitle: Weather Station
+        established: "2026"
+        max_daily: 50
+        unit: mm
+        theme: classic_oak
+      - type: custom:burnett-vintage-uv-index
+        entity: sensor.gw3000a_uv_index
+        name: Burnett Street
+        subtitle: Weather Station
+        established: "2026"
+        theme: classic_oak
+      - type: custom:burnett-vintage-solar
+        entity: sensor.gw3000a_solar_radiation
+        name: Burnett Street
+        subtitle: Weather Station
+        established: "2026"
+        max_solar: 1200
+        unit: W/m²
+        theme: classic_oak

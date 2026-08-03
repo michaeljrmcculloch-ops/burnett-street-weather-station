@@ -6,7 +6,17 @@ weather description.
 
 ## [Unreleased]
 
-## [0.2.0] "Breeze" — In Progress
+## [0.3.0] "Showers" — Complete
+### Added
+- Animated SVG rain gauge (graduated tube for daily total, rate
+  readout with plain-English intensity label from Dry to Torrential)
+- Animated SVG UV index gauge with standard international color bands
+  (green/yellow/orange/red/purple)
+- Animated SVG solar radiation gauge with subtle decorative sunburst
+- Dual theme support, tap-to-history, shadow DOM isolation across all
+  three new gauges
+
+## [0.2.0] "Breeze" — Complete
 ### Added
 - Animated SVG thermometer (vertical mercury tube)
 - Mercury color shifts from steel-blue (cold) to red (warm)

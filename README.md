@@ -8,8 +8,8 @@ mechanical needle movement, built as modular SVG custom cards.
 
 ## Status
 
-🚧 **v0.2 "Breeze"** — thermometer, hygrometer, wind compass, and wind
-speed gauges added alongside the v0.1 barometer.
+🚧 **v0.3 "Showers"** — rain gauge, UV index, and solar radiation
+gauges added alongside the v0.1/v0.2 instruments. Eight gauges total.
 See [`CHANGELOG.md`](CHANGELOG.md) for the full roadmap.
 
 ## What's in this release
@@ -37,6 +37,17 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full roadmap.
 **Wind speed**
 - Numbered dial (any unit — mph, km/h, etc.) with a peak-gust needle
   using the same instant-rise history pattern as the thermometer
+
+**Rain gauge**
+- Graduated glass tube fills with today's accumulated total
+- Plain-English rate intensity label (Dry → Drizzle → Light →
+  Moderate → Heavy → Torrential)
+
+**UV index**
+- Standard international color bands (green/yellow/orange/red/purple)
+
+**Solar radiation**
+- Numbered dial with a subtle decorative sunburst accent
 
 **All gauges**
 - Tap the dial to open Home Assistant's built-in history graph
