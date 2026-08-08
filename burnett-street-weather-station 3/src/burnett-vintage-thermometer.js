@@ -1,0 +1,267 @@
+/**
+ * Burnett Street Weather Station — Vintage Thermometer Card
+ * -----------------------------------------------------------
+ * A hand-drawn SVG antique mercury thermometer for Home Assistant.
+ * Milestone: v0.2 "Breeze"
+ *
+ * Config example:
+ * type: custom:burnett-vintage-thermometer
+ * entity: sensor.gw3000a_outdoor_temperature
+ * name: Burnett Street
+ * subtitle: Weather Station
+ * established: "2026"
+ * min_temp: -10
+ * max_temp: 40
+ * unit: °C
+ * theme: classic_oak   # or "observatory"
+ */
+
+class BurnettVintageThermometer extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+  }
+
+  setConfig(config) {
+    if (!config.entity) {
+      throw new Error("You must set an 'entity' (a temperature sensor).");
+    }
+    this._config = {
+      min_temp: -10,
+      max_temp: 40,
+      unit: "°C",
+      theme: "classic_oak",
+      name: "Burnett Street",
+      subtitle: "Weather Station",
+      established: "2026",
+      decimals: 1,
+      show_daily_high: true,
+      high_window_hours: 24,
+      ...config,
+    };
+    this._dailyHigh = null;
+    this._lastHighFetch = 0;
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    const stateObj = hass.states[this._config.entity];
+    if (!stateObj) return;
+
+    const value = parseFloat(stateObj.state);
+    if (isNaN(value)) return;
+
+    this._updateMercury(value);
+    this._updateReadout(value);
+
+    if (this._config.show_daily_high) {
+      // If the live reading is itself the new high, we already know
+      // that without asking history — jump the marker immediately.
+      if (this._dailyHigh === null || value > this._dailyHigh) {
+        this._dailyHigh = value;
+        this._updateHighMarker(value);
+      }
+      // Still periodically reconcile with real history, so the marker
+      // correctly steps back down once an old peak ages out of the window.
+      this._maybeFetchDailyHigh();
+    }
+  }
+
+  // Ask Home Assistant's history for the highest value this entity has
+  // recorded in the last `high_window_hours`, and move the brass marker
+  // to that point on the scale. Throttled to once every 10 minutes.
+  async _maybeFetchDailyHigh() {
+    const now = Date.now();
+    if (now - this._lastHighFetch < 10 * 60 * 1000) return;
+    this._lastHighFetch = now;
+
+    const since = new Date(now - this._config.high_window_hours * 60 * 60 * 1000).toISOString();
+
+    try {
+      const history = await this._hass.callApi(
+        "GET",
+        `history/period/${since}?filter_entity_id=${this._config.entity}&minimal_response`
+      );
+      const entries = history && history[0];
+      if (!entries || !entries.length) return;
+
+      let max = -Infinity;
+      for (const entry of entries) {
+        const v = parseFloat(entry.state);
+        if (!isNaN(v) && v > max) max = v;
+      }
+      if (max > -Infinity) {
+        this._dailyHigh = max;
+        this._updateHighMarker(max);
+      }
+    } catch (err) {
+      console.warn("Burnett thermometer: couldn't fetch daily high", err);
+    }
+  }
+
+  _render() {
+    const isDark = this._config.theme === "observatory";
+    const frame = isDark ? "#1b1f24" : "#f4ecd8";
+    const rim = isDark ? "#8a7a4f" : "#b08d57";
+    const text = isDark ? "#d8c99a" : "#3a2c1a";
+    this._themeText = text;
+
+    // The tube is drawn from y=170 (bulb) up to y=20 (top), 150px of travel.
+    this._tubeTop = 20;
+    this._tubeBottom = 170;
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display: block; }
+        ha-card {
+          display: block;
+          background: ${isDark ? "#0f1216" : "#fffaf0"};
+          border-radius: 16px;
+          padding: 16px;
+          font-family: Georgia, 'Times New Roman', serif;
+          text-align: center;
+        }
+        .plaque { color: ${text}; font-size: 1.1em; letter-spacing: 1px; margin-bottom: 4px; }
+        .plaque .subtitle { font-size: 0.7em; opacity: 0.75; display: block; }
+        .dial-wrap { cursor: pointer; }
+        .mercury {
+          transition: y 1.2s cubic-bezier(0.34, 1.2, 0.4, 1),
+                      height 1.2s cubic-bezier(0.34, 1.2, 0.4, 1),
+                      fill 1.2s ease-out;
+        }
+        .bulb { transition: fill 1.2s ease-out; }
+        .high-marker {
+          transition: transform 2s ease-out;
+          opacity: 0.9;
+        }
+        .readout { color: ${text}; font-size: 1.4em; margin-top: 6px; }
+        .high-label { color: ${text}; font-size: 0.7em; opacity: 0.6; margin-top: 2px; }
+      </style>
+      <ha-card>
+        <div class="plaque">
+          ${this._config.name}
+          <span class="subtitle">${this._config.subtitle} · Est. ${this._config.established}</span>
+        </div>
+        <div class="dial-wrap">
+          <svg viewBox="0 0 120 220" width="100%" style="max-width:140px">
+            <!-- Frame / backboard -->
+            <rect x="10" y="8" width="100" height="200" rx="10" fill="${frame}" stroke="${rim}" stroke-width="4"/>
+            ${this._drawScale(text)}
+            <!-- Glass tube outline -->
+            <rect x="54" y="${this._tubeTop}" width="12" height="${this._tubeBottom - this._tubeTop}" rx="6" fill="none" stroke="${rim}" stroke-width="2"/>
+            <!-- Mercury column -->
+            <rect class="mercury" id="mercury" x="55" y="${this._tubeBottom}" width="10" height="0" fill="${rim}"/>
+            <!-- Bulb -->
+            <circle class="bulb" id="bulb" cx="60" cy="185" r="14" fill="${rim}" stroke="${rim}" stroke-width="2"/>
+            <!-- Brass high-water marker -->
+            ${
+              this._config.show_daily_high
+                ? `<g class="high-marker" id="high-marker" style="display:none">
+                     <rect x="20" y="-2" width="30" height="4" rx="2" fill="#b08d57" stroke="#7a5f38" stroke-width="0.5"/>
+                   </g>`
+                : ""
+            }
+          </svg>
+        </div>
+        <div class="readout" id="readout">-- ${this._config.unit}</div>
+        ${
+          this._config.show_daily_high
+            ? `<div class="high-label" id="high-label"></div>`
+            : ""
+        }
+      </ha-card>
+    `;
+
+    this.shadowRoot.querySelector(".dial-wrap").addEventListener("click", () => {
+      this.dispatchEvent(
+        new CustomEvent("hass-more-info", {
+          detail: { entityId: this._config.entity },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    });
+  }
+
+  _drawScale(color) {
+    const { min_temp, max_temp } = this._config;
+    const span = max_temp - min_temp;
+    // Draw 5 evenly spaced tick labels from max (top) to min (bottom).
+    let marks = "";
+    const steps = 5;
+    for (let i = 0; i <= steps; i++) {
+      const value = max_temp - (span * i) / steps;
+      const y = this._tubeTop + ((this._tubeBottom - this._tubeTop) * i) / steps;
+      marks += `<line x1="70" y1="${y}" x2="78" y2="${y}" stroke="${color}" stroke-width="1.5"/>`;
+      marks += `<text x="82" y="${y + 3}" fill="${color}" font-size="8">${Math.round(value)}°</text>`;
+    }
+    return marks;
+  }
+
+  // Blend from a cold steel-blue toward a warm mercury-red as temperature
+  // rises through the configured range, so the column's own color hints
+  // at "cold" vs "warm" the way an old alcohol thermometer's dye can.
+  _mercuryColor(fraction) {
+    const cold = [58, 92, 138]; // steel blue
+    const warm = [138, 31, 31]; // mercury red
+    const r = Math.round(cold[0] + (warm[0] - cold[0]) * fraction);
+    const g = Math.round(cold[1] + (warm[1] - cold[1]) * fraction);
+    const b = Math.round(cold[2] + (warm[2] - cold[2]) * fraction);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  _updateMercury(value) {
+    const { min_temp, max_temp } = this._config;
+    const clamped = Math.min(Math.max(value, min_temp), max_temp);
+    const fraction = (clamped - min_temp) / (max_temp - min_temp);
+    const tubeHeight = this._tubeBottom - this._tubeTop;
+    const columnHeight = fraction * tubeHeight;
+    const color = this._mercuryColor(fraction);
+
+    const mercury = this.shadowRoot.querySelector("#mercury");
+    const bulb = this.shadowRoot.querySelector("#bulb");
+    if (mercury) {
+      mercury.setAttribute("y", this._tubeBottom - columnHeight);
+      mercury.setAttribute("height", columnHeight);
+      mercury.setAttribute("fill", color);
+    }
+    if (bulb) bulb.setAttribute("fill", color);
+  }
+
+  _updateHighMarker(value) {
+    const marker = this.shadowRoot.querySelector("#high-marker");
+    const label = this.shadowRoot.querySelector("#high-label");
+    if (!marker) return;
+    const { min_temp, max_temp } = this._config;
+    const clamped = Math.min(Math.max(value, min_temp), max_temp);
+    const fraction = (clamped - min_temp) / (max_temp - min_temp);
+    const tubeHeight = this._tubeBottom - this._tubeTop;
+    const y = this._tubeBottom - fraction * tubeHeight;
+    marker.style.display = "block";
+    marker.style.transform = `translateY(${y}px)`;
+    if (label) {
+      label.textContent = `${this._config.high_window_hours}h high: ${value.toFixed(this._config.decimals)} ${this._config.unit}`;
+    }
+  }
+
+  _updateReadout(value) {
+    const readout = this.shadowRoot.querySelector("#readout");
+    if (readout) {
+      readout.textContent = `${value.toFixed(this._config.decimals)} ${this._config.unit}`;
+    }
+  }
+
+  getCardSize() {
+    return 4;
+  }
+}
+
+customElements.define("burnett-vintage-thermometer", BurnettVintageThermometer);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "burnett-vintage-thermometer",
+  name: "Burnett Vintage Thermometer",
+  description: "An antique, animated SVG mercury thermometer for Home Assistant.",
+});

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Burnett Street Weather Station — Wind Speed Preview</title>
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #2b2620;
+    font-family: Georgia, 'Times New Roman', serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 16px;
+    box-sizing: border-box;
+  }
+  h1 { color: #e8dcc0; font-size: 1.1em; font-weight: normal; letter-spacing: 1px; }
+  .stage { display: flex; gap: 40px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+  .card-slot { width: 300px; }
+  .controls {
+    background: #3a332a;
+    border-radius: 12px;
+    padding: 20px;
+    color: #e8dcc0;
+    width: 260px;
+  }
+  .controls label { display: block; margin-top: 14px; font-size: 0.85em; }
+  .controls input[type=range] { width: 100%; }
+  .controls button { width: 100%; padding: 8px; margin-top: 14px; border-radius: 6px; border: none; cursor: pointer; background: #8a1f1f; color: white; }
+  .controls hr { border: none; border-top: 1px solid #55483a; margin: 18px 0; }
+  .hint { font-size: 0.75em; opacity: 0.7; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <h1>Burnett Street Weather Station — Wind Speed Preview</h1>
+  <div class="stage">
+    <div class="card-slot" id="card-slot-oak"></div>
+    <div class="card-slot" id="card-slot-obs"></div>
+    <div class="controls">
+      <strong>Simulate wind speed</strong>
+      <label>Current speed (mph): <span id="speed-val">8</span></label>
+      <input type="range" id="speed-slider" min="0" max="80" value="8" step="1">
+      <div class="hint">Push above the current peak and watch it jump instantly.</div>
+      <hr>
+      <strong>Peak gust (history)</strong>
+      <label>Simulated 30m history peak (mph): <span id="peak-val">15</span></label>
+      <input type="range" id="peak-slider" min="0" max="80" value="15" step="1">
+      <button id="peak-refresh-btn">Refresh from history now</button>
+      <hr>
+      <strong>Unit system</strong>
+      <select id="unit-select">
+        <option value="mph">mph (max 80)</option>
+        <option value="kph">km/h (max 130)</option>
+      </select>
+      <div class="hint">Same card, same code — just different config values.</div>
+    </div>
+  </div>
+
+<script>
+customElements.define('ha-card', class extends HTMLElement {});
+</script>
+<script type="module">
+/**
+ * Burnett Street Weather Station — Vintage Wind Speed Card
+ * -----------------------------------------------------------
+ * A hand-drawn SVG antique wind speed gauge for Home Assistant.
+ * Milestone: v0.2 "Breeze"
+ *
+ * Config example:
+ * type: custom:burnett-vintage-wind-speed
+ * entity: sensor.gw3000a_wind_speed
+ * gust_entity: sensor.gw3000a_wind_gust    # optional — falls back to `entity`
+ * name: Burnett Street
+ * subtitle: Weather Station
+ * established: "2026"
+ * max_speed: 40
+ * speed_unit: mph
+ * theme: classic_oak   # or "observatory"
+ */
+
+class BurnettVintageWindSpeed extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+  }
+
+  setConfig(config) {
+    if (!config.entity) {
+      throw new Error("You must set an 'entity' (a wind speed sensor).");
+    }
+    this._config = {
+      max_speed: 80,
+      speed_unit: "mph",
+      theme: "classic_oak",
+      name: "Burnett Street",
+      subtitle: "Weather Station",
+      established: "2026",
+      decimals: 0,
+      show_peak_gust: true,
+      peak_gust_window_minutes: 30,
+      ...config,
+    };
+    this._peakGust = null;
+    this._lastPeakFetch = 0;
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    const stateObj = hass.states[this._config.entity];
+    if (!stateObj) return;
+
+    const value = parseFloat(stateObj.state);
+    if (isNaN(value)) return;
+
+    this._updateNeedle(value);
+    this._updateReadout(value);
+
+    if (this._config.show_peak_gust) {
+      // Instantly reflect a new peak if the live reading itself is
+      // higher than what we're currently showing — no history lookup
+      // needed for that direction.
+      const gustEntityId = this._config.gust_entity || this._config.entity;
+      const liveGustState = hass.states[gustEntityId];
+      const liveGust = liveGustState ? parseFloat(liveGustState.state) : value;
+      if (!isNaN(liveGust) && (this._peakGust === null || liveGust > this._peakGust)) {
+        this._peakGust = liveGust;
+        this._updatePeakNeedle(liveGust);
+      }
+      // Periodically reconcile with real history so the peak correctly
+      // steps back down once it ages out of the window.
+      this._maybeFetchPeakGust();
+    }
+  }
+
+  // Ask Home Assistant's history for the highest gust in the last
+  // `peak_gust_window_minutes`. Throttled to every 2 minutes — the
+  // window is short, so it needs checking more often than the
+  // barometer's 5-hour ghost needle or the thermometer's 24h high.
+  async _maybeFetchPeakGust() {
+    const now = Date.now();
+    if (now - this._lastPeakFetch < 2 * 60 * 1000) return;
+    this._lastPeakFetch = now;
+
+    const entityId = this._config.gust_entity || this._config.entity;
+    const since = new Date(now - this._config.peak_gust_window_minutes * 60 * 1000).toISOString();
+
+    try {
+      const history = await this._hass.callApi(
+        "GET",
+        `history/period/${since}?filter_entity_id=${entityId}&minimal_response`
+      );
+      const entries = history && history[0];
+      if (!entries || !entries.length) return;
+
+      let max = -Infinity;
+      for (const entry of entries) {
+        const v = parseFloat(entry.state);
+        if (!isNaN(v) && v > max) max = v;
+      }
+      if (max > -Infinity) {
+        this._peakGust = max;
+        this._updatePeakNeedle(max);
+      }
+    } catch (err) {
+      console.warn("Burnett wind speed: couldn't fetch peak gust", err);
+    }
+  }
+
+  _render() {
+    const isDark = this._config.theme === "observatory";
+    const face = isDark ? "#1b1f24" : "#f4ecd8";
+    const rim = isDark ? "#8a7a4f" : "#b08d57";
+    const text = isDark ? "#d8c99a" : "#3a2c1a";
+    this._themeText = text;
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display: block; }
+        ha-card {
+          display: block;
+          background: ${isDark ? "#0f1216" : "#fffaf0"};
+          border-radius: 16px;
+          padding: 16px;
+          font-family: Georgia, 'Times New Roman', serif;
+          text-align: center;
+        }
+        .plaque { color: ${text}; font-size: 1.1em; letter-spacing: 1px; margin-bottom: 4px; }
+        .plaque .subtitle { font-size: 0.7em; opacity: 0.75; display: block; }
+        .dial-wrap { cursor: pointer; }
+        .needle {
+          transform-origin: 100px 100px;
+          transition: transform 1.2s cubic-bezier(0.34, 1.2, 0.4, 1);
+        }
+        .peak-needle {
+          transform-origin: 100px 100px;
+          transition: transform 2s ease-out;
+          opacity: 0.45;
+        }
+        .readout { color: ${text}; font-size: 1.4em; margin-top: 6px; }
+        .peak-label { color: ${text}; font-size: 0.7em; opacity: 0.6; margin-top: 2px; }
+      </style>
+      <ha-card>
+        <div class="plaque">
+          ${this._config.name}
+          <span class="subtitle">${this._config.subtitle} · Est. ${this._config.established}</span>
+        </div>
+        <div class="dial-wrap">
+          <svg viewBox="0 0 200 200" width="100%" style="max-width:280px">
+            <circle cx="100" cy="100" r="95" fill="${face}" stroke="${rim}" stroke-width="6"/>
+            <circle cx="100" cy="100" r="80" fill="none" stroke="${rim}" stroke-width="1" opacity="0.5"/>
+            ${this._drawTicks(text)}
+            <text x="100" y="72" fill="${text}" font-size="9" text-anchor="middle" font-style="italic">Wind Speed</text>
+            ${
+              this._config.show_peak_gust
+                ? `<g class="peak-needle" id="peak-needle" style="display:none">
+                     <line x1="100" y1="100" x2="100" y2="38" stroke="${text}" stroke-width="1.5" stroke-linecap="round"/>
+                     <circle cx="100" cy="100" r="3" fill="${text}"/>
+                   </g>`
+                : ""
+            }
+            <g class="needle" id="needle">
+              <line x1="100" y1="100" x2="100" y2="30" stroke="#8a1f1f" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="100" cy="100" r="5" fill="#8a1f1f"/>
+            </g>
+          </svg>
+        </div>
+        <div class="readout" id="readout">-- ${this._config.speed_unit}</div>
+        ${
+          this._config.show_peak_gust
+            ? `<div class="peak-label" id="peak-label"></div>`
+            : ""
+        }
+      </ha-card>
+    `;
+
+    this.shadowRoot.querySelector(".dial-wrap").addEventListener("click", () => {
+      this.dispatchEvent(
+        new CustomEvent("hass-more-info", {
+          detail: { entityId: this._config.entity },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    });
+  }
+
+  _drawTicks(color) {
+    let ticks = "";
+    const { max_speed } = this._config;
+    const majorSteps = 8;
+    for (let i = 0; i <= 40; i++) {
+      const angle = -120 + (i * 240) / 40;
+      const rad = (angle * Math.PI) / 180;
+      const long = i % 5 === 0;
+      const r1 = long ? 68 : 74;
+      const x1 = 100 + r1 * Math.sin(rad);
+      const y1 = 100 - r1 * Math.cos(rad);
+      const x2 = 100 + 80 * Math.sin(rad);
+      const y2 = 100 - 80 * Math.cos(rad);
+      ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${long ? 2 : 1}" opacity="${long ? 0.9 : 0.5}"/>`;
+    }
+    for (let i = 0; i <= majorSteps; i++) {
+      const value = Math.round((max_speed * i) / majorSteps);
+      const angle = -120 + (i * 240) / majorSteps;
+      const rad = (angle * Math.PI) / 180;
+      const x = 100 + 58 * Math.sin(rad);
+      const y = 100 - 58 * Math.cos(rad);
+      ticks += `<text x="${x}" y="${y + 3}" fill="${color}" font-size="8" text-anchor="middle">${value}</text>`;
+    }
+    return ticks;
+  }
+
+  _angleForValue(value) {
+    const { max_speed } = this._config;
+    const clamped = Math.min(Math.max(value, 0), max_speed);
+    const fraction = clamped / max_speed;
+    return -120 + fraction * 240;
+  }
+
+  _updateNeedle(value) {
+    const angle = this._angleForValue(value);
+    const needle = this.shadowRoot.querySelector("#needle");
+    if (needle) needle.style.transform = `rotate(${angle}deg)`;
+  }
+
+  _updatePeakNeedle(value) {
+    const peak = this.shadowRoot.querySelector("#peak-needle");
+    const label = this.shadowRoot.querySelector("#peak-label");
+    if (!peak) return;
+    const angle = this._angleForValue(value);
+    peak.style.display = "block";
+    peak.style.transform = `rotate(${angle}deg)`;
+    if (label) {
+      label.textContent = `Peak gust (${this._config.peak_gust_window_minutes}m): ${value.toFixed(this._config.decimals)} ${this._config.speed_unit}`;
+    }
+  }
+
+  _updateReadout(value) {
+    const readout = this.shadowRoot.querySelector("#readout");
+    if (readout) {
+      readout.textContent = `${value.toFixed(this._config.decimals)} ${this._config.speed_unit}`;
+    }
+  }
+
+  getCardSize() {
+    return 4;
+  }
+}
+
+customElements.define("burnett-vintage-wind-speed", BurnettVintageWindSpeed);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "burnett-vintage-wind-speed",
+  name: "Burnett Vintage Wind Speed",
+  description: "An antique, animated SVG wind speed gauge with peak gust needle for Home Assistant.",
+});
+
+</script>
+<script type="module">
+  let simulatedPeak = 15;
+  function fakeCallApi(method, path) {
+    if (path.startsWith('history/period')) {
+      return Promise.resolve([[
+        { state: String(Math.max(simulatedPeak - 4, 0)) },
+        { state: String(simulatedPeak) },
+        { state: String(Math.max(simulatedPeak - 2, 0)) },
+      ]]);
+    }
+    return Promise.resolve([]);
+  }
+
+  function makeCard(theme, unit) {
+    const isKph = unit === 'kph';
+    const card = document.createElement('burnett-vintage-wind-speed');
+    card.setConfig({
+      entity: 'sensor.demo_wind_speed',
+      name: 'Burnett Street',
+      subtitle: theme === 'observatory' ? 'Night Watch' : 'Weather Station',
+      established: '2026',
+      theme: theme,
+      max_speed: isKph ? 130 : 80,
+      speed_unit: isKph ? 'km/h' : 'mph',
+      show_peak_gust: true,
+      peak_gust_window_minutes: 30,
+    });
+    return card;
+  }
+  let oakCard = makeCard('classic_oak', 'mph');
+  let obsCard = makeCard('observatory', 'mph');
+  document.getElementById('card-slot-oak').appendChild(oakCard);
+  document.getElementById('card-slot-obs').appendChild(obsCard);
+
+  document.getElementById('unit-select').addEventListener('change', (e) => {
+    const unit = e.target.value;
+    const oakSlot = document.getElementById('card-slot-oak');
+    const obsSlot = document.getElementById('card-slot-obs');
+    oakSlot.innerHTML = '';
+    obsSlot.innerHTML = '';
+    oakCard = makeCard('classic_oak', unit);
+    obsCard = makeCard('observatory', unit);
+    oakSlot.appendChild(oakCard);
+    obsSlot.appendChild(obsCard);
+    speedSlider.max = unit === 'kph' ? 130 : 80;
+    peakSlider.max = unit === 'kph' ? 130 : 80;
+    pushState();
+  });
+
+  document.addEventListener('hass-more-info', (e) => {
+    alert('In real Home Assistant, tapping opens the history graph for:\n' + e.detail.entityId);
+  });
+
+  const speedSlider = document.getElementById('speed-slider');
+  const speedLabel = document.getElementById('speed-val');
+  const peakSlider = document.getElementById('peak-slider');
+  const peakLabel = document.getElementById('peak-val');
+
+  function pushState() {
+    const hass = {
+      states: { 'sensor.demo_wind_speed': { state: speedSlider.value } },
+      callApi: fakeCallApi,
+    };
+    oakCard.hass = hass;
+    obsCard.hass = hass;
+  }
+
+  speedSlider.addEventListener('input', () => {
+    speedLabel.textContent = speedSlider.value;
+    pushState();
+  });
+
+  peakSlider.addEventListener('input', () => {
+    simulatedPeak = parseFloat(peakSlider.value);
+    peakLabel.textContent = simulatedPeak.toFixed(0);
+  });
+
+  document.getElementById('peak-refresh-btn').addEventListener('click', () => {
+    oakCard._lastPeakFetch = 0;
+    obsCard._lastPeakFetch = 0;
+    oakCard._maybeFetchPeakGust();
+    obsCard._maybeFetchPeakGust();
+  });
+
+  pushState();
+  setTimeout(() => {
+    oakCard._maybeFetchPeakGust();
+    obsCard._maybeFetchPeakGust();
+  }, 300);
+</script>
+</body>
+</html>
