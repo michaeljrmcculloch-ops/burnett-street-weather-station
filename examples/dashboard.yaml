@@ -39,7 +39,7 @@ views:
         name: Burnett Street
         subtitle: Weather Station
         established: "2026"
-        speed_unit: mph
+        speed_unit: km/h   # GW3000A reports wind speed in km/h, not mph
         theme: classic_oak
       - type: custom:burnett-vintage-wind-speed
         entity: sensor.gw3000a_wind_speed
@@ -47,8 +47,8 @@ views:
         name: Burnett Street
         subtitle: Weather Station
         established: "2026"
-        max_speed: 80
-        speed_unit: mph
+        max_speed: 130
+        speed_unit: km/h   # GW3000A reports wind speed in km/h, not mph
         theme: classic_oak
         show_peak_gust: true
         peak_gust_window_minutes: 30
