@@ -1,0 +1,153 @@
+# Burnett Street Weather Station — Records helpers (v0.4 "Frost")
+#
+# 24 helpers: one input_number (the record value) and one
+# input_datetime (the date it was set) for each of the 4 tracked
+# metrics x 3 periods. Merge these two top-level keys into your
+# configuration.yaml (or a packages/burnett_records.yaml file if you
+# use packages — recommended, since it keeps this self-contained).
+#
+# You can also create these by hand through Settings → Devices &
+# Services → Helpers → Create Helper, but with 24 of them the YAML
+# route is much faster.
+
+input_number:
+  burnett_record_temp_high_alltime:
+    name: "Record: Highest Temperature (All-Time)"
+    min: -50
+    max: 60
+    step: 0.1
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer-high
+  burnett_record_temp_high_month:
+    name: "Record: Highest Temperature (Month)"
+    min: -50
+    max: 60
+    step: 0.1
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer-high
+  burnett_record_temp_high_week:
+    name: "Record: Highest Temperature (Week)"
+    min: -50
+    max: 60
+    step: 0.1
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer-high
+
+  burnett_record_temp_low_alltime:
+    name: "Record: Lowest Temperature (All-Time)"
+    min: -50
+    max: 60
+    step: 0.1
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer-low
+  burnett_record_temp_low_month:
+    name: "Record: Lowest Temperature (Month)"
+    min: -50
+    max: 60
+    step: 0.1
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer-low
+  burnett_record_temp_low_week:
+    name: "Record: Lowest Temperature (Week)"
+    min: -50
+    max: 60
+    step: 0.1
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer-low
+
+  burnett_record_wind_gust_alltime:
+    name: "Record: Highest Gust (All-Time)"
+    min: 0
+    max: 250
+    step: 0.1
+    unit_of_measurement: "km/h"
+    icon: mdi:weather-windy
+  burnett_record_wind_gust_month:
+    name: "Record: Highest Gust (Month)"
+    min: 0
+    max: 250
+    step: 0.1
+    unit_of_measurement: "km/h"
+    icon: mdi:weather-windy
+  burnett_record_wind_gust_week:
+    name: "Record: Highest Gust (Week)"
+    min: 0
+    max: 250
+    step: 0.1
+    unit_of_measurement: "km/h"
+    icon: mdi:weather-windy
+
+  burnett_record_rainfall_alltime:
+    name: "Record: Wettest Day (All-Time)"
+    min: 0
+    max: 500
+    step: 0.1
+    unit_of_measurement: "mm"
+    icon: mdi:weather-pouring
+  burnett_record_rainfall_month:
+    name: "Record: Wettest Day (Month)"
+    min: 0
+    max: 500
+    step: 0.1
+    unit_of_measurement: "mm"
+    icon: mdi:weather-pouring
+  burnett_record_rainfall_week:
+    name: "Record: Wettest Day (Week)"
+    min: 0
+    max: 500
+    step: 0.1
+    unit_of_measurement: "mm"
+    icon: mdi:weather-pouring
+
+input_datetime:
+  burnett_record_temp_high_alltime_date:
+    name: "Record Date: Highest Temperature (All-Time)"
+    has_date: true
+    has_time: false
+  burnett_record_temp_high_month_date:
+    name: "Record Date: Highest Temperature (Month)"
+    has_date: true
+    has_time: false
+  burnett_record_temp_high_week_date:
+    name: "Record Date: Highest Temperature (Week)"
+    has_date: true
+    has_time: false
+
+  burnett_record_temp_low_alltime_date:
+    name: "Record Date: Lowest Temperature (All-Time)"
+    has_date: true
+    has_time: false
+  burnett_record_temp_low_month_date:
+    name: "Record Date: Lowest Temperature (Month)"
+    has_date: true
+    has_time: false
+  burnett_record_temp_low_week_date:
+    name: "Record Date: Lowest Temperature (Week)"
+    has_date: true
+    has_time: false
+
+  burnett_record_wind_gust_alltime_date:
+    name: "Record Date: Highest Gust (All-Time)"
+    has_date: true
+    has_time: false
+  burnett_record_wind_gust_month_date:
+    name: "Record Date: Highest Gust (Month)"
+    has_date: true
+    has_time: false
+  burnett_record_wind_gust_week_date:
+    name: "Record Date: Highest Gust (Week)"
+    has_date: true
+    has_time: false
+
+  burnett_record_rainfall_alltime_date:
+    name: "Record Date: Wettest Day (All-Time)"
+    has_date: true
+    has_time: false
+  burnett_record_rainfall_month_date:
+    name: "Record Date: Wettest Day (Month)"
+    has_date: true
+    has_time: false
+  burnett_record_rainfall_week_date:
+    name: "Record Date: Wettest Day (Week)"
+    has_date: true
+    has_time: false
