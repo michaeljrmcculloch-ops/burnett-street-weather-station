@@ -75,3 +75,13 @@ views:
         max_solar: 1200
         unit: W/m²
         theme: classic_oak
+      - type: custom:burnett-vintage-records
+        # Requires the helpers in helpers/records.yaml and the
+        # automations in automations/records.yaml — see docs/records.md
+        name: Burnett Street
+        subtitle: Weather Station
+        established: "2026"
+        theme: classic_oak
+        temp_unit: °C
+        wind_unit: km/h
+        rain_unit: mm
