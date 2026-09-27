@@ -1,0 +1,308 @@
+# Burnett Street Weather Station — Records automations (v0.4 "Frost")
+#
+# Eight automations that keep the burnett_record_* input_number /
+# input_datetime helpers up to date so the Records ledger card has
+# something to show. Paste these into your automations.yaml (or add
+# them one by one through Settings → Automations → Create Automation →
+# Edit in YAML).
+#
+# Source sensors used:
+#   sensor.gw3000a_outdoor_temperature  — for both the high and low
+#   sensor.gw3000a_max_daily_gust       — the hardware's own daily peak gust
+#   sensor.gw3000a_daily_rain           — today's rainfall total so far
+#
+# Helpers required (see helpers/records.yaml): for every metric
+# (temp_high, temp_low, wind_gust, rainfall) and every period
+# (alltime, month, week) there is one input_number.burnett_record_*
+# and one input_datetime.burnett_record_*_date.
+
+- id: burnett_records_update_alltime_highs
+  alias: "Burnett Records – Update All-Time Highs"
+  description: >-
+    Checks temperature, gust and rainfall on every update and raises
+    the all-time record whenever the live reading beats it.
+  trigger:
+    - platform: state
+      entity_id: sensor.gw3000a_outdoor_temperature
+      id: temp_high
+    - platform: state
+      entity_id: sensor.gw3000a_max_daily_gust
+      id: wind_gust
+    - platform: state
+      entity_id: sensor.gw3000a_daily_rain
+      id: rainfall
+  condition:
+    - condition: template
+      value_template: >-
+        {{ trigger.to_state is not none and trigger.to_state.state not in
+           ['unknown', 'unavailable', 'none'] }}
+  action:
+    - variables:
+        metric: "{{ trigger.id }}"
+        new_value: "{{ trigger.to_state.state | float }}"
+        record_entity: "input_number.burnett_record_{{ metric }}_alltime"
+        date_entity: "input_datetime.burnett_record_{{ metric }}_alltime_date"
+    - condition: template
+      value_template: >-
+        {{ states(record_entity) in ['unknown', 'unavailable', 'none']
+           or new_value > states(record_entity) | float }}
+    - service: input_number.set_value
+      target:
+        entity_id: "{{ record_entity }}"
+      data:
+        value: "{{ new_value }}"
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: "{{ date_entity }}"
+      data:
+        date: "{{ now().strftime('%Y-%m-%d') }}"
+
+- id: burnett_records_update_alltime_low
+  alias: "Burnett Records – Update All-Time Low"
+  description: "Lowers the all-time low-temperature record whenever it's beaten."
+  trigger:
+    - platform: state
+      entity_id: sensor.gw3000a_outdoor_temperature
+  condition:
+    - condition: template
+      value_template: >-
+        {{ trigger.to_state is not none and trigger.to_state.state not in
+           ['unknown', 'unavailable', 'none'] }}
+  action:
+    - variables:
+        new_value: "{{ trigger.to_state.state | float }}"
+    - condition: template
+      value_template: >-
+        {{ states('input_number.burnett_record_temp_low_alltime') in
+           ['unknown', 'unavailable', 'none']
+           or new_value < states('input_number.burnett_record_temp_low_alltime') | float }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_temp_low_alltime
+      data:
+        value: "{{ new_value }}"
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.burnett_record_temp_low_alltime_date
+      data:
+        date: "{{ now().strftime('%Y-%m-%d') }}"
+- id: burnett_records_update_month_highs
+  alias: "Burnett Records – Update Month Highs"
+  description: "Same as the all-time version, but against this month's record."
+  trigger:
+    - platform: state
+      entity_id: sensor.gw3000a_outdoor_temperature
+      id: temp_high
+    - platform: state
+      entity_id: sensor.gw3000a_max_daily_gust
+      id: wind_gust
+    - platform: state
+      entity_id: sensor.gw3000a_daily_rain
+      id: rainfall
+  condition:
+    - condition: template
+      value_template: >-
+        {{ trigger.to_state is not none and trigger.to_state.state not in
+           ['unknown', 'unavailable', 'none'] }}
+  action:
+    - variables:
+        metric: "{{ trigger.id }}"
+        new_value: "{{ trigger.to_state.state | float }}"
+        record_entity: "input_number.burnett_record_{{ metric }}_month"
+        date_entity: "input_datetime.burnett_record_{{ metric }}_month_date"
+    - condition: template
+      value_template: >-
+        {{ states(record_entity) in ['unknown', 'unavailable', 'none']
+           or new_value > states(record_entity) | float }}
+    - service: input_number.set_value
+      target:
+        entity_id: "{{ record_entity }}"
+      data:
+        value: "{{ new_value }}"
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: "{{ date_entity }}"
+      data:
+        date: "{{ now().strftime('%Y-%m-%d') }}"
+
+- id: burnett_records_update_month_low
+  alias: "Burnett Records – Update Month Low"
+  description: "Lowers this month's low-temperature record whenever it's beaten."
+  trigger:
+    - platform: state
+      entity_id: sensor.gw3000a_outdoor_temperature
+  condition:
+    - condition: template
+      value_template: >-
+        {{ trigger.to_state is not none and trigger.to_state.state not in
+           ['unknown', 'unavailable', 'none'] }}
+  action:
+    - variables:
+        new_value: "{{ trigger.to_state.state | float }}"
+    - condition: template
+      value_template: >-
+        {{ states('input_number.burnett_record_temp_low_month') in
+           ['unknown', 'unavailable', 'none']
+           or new_value < states('input_number.burnett_record_temp_low_month') | float }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_temp_low_month
+      data:
+        value: "{{ new_value }}"
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.burnett_record_temp_low_month_date
+      data:
+        date: "{{ now().strftime('%Y-%m-%d') }}"
+- id: burnett_records_update_week_highs
+  alias: "Burnett Records – Update Week Highs"
+  description: "Same as the all-time version, but against this week's record."
+  trigger:
+    - platform: state
+      entity_id: sensor.gw3000a_outdoor_temperature
+      id: temp_high
+    - platform: state
+      entity_id: sensor.gw3000a_max_daily_gust
+      id: wind_gust
+    - platform: state
+      entity_id: sensor.gw3000a_daily_rain
+      id: rainfall
+  condition:
+    - condition: template
+      value_template: >-
+        {{ trigger.to_state is not none and trigger.to_state.state not in
+           ['unknown', 'unavailable', 'none'] }}
+  action:
+    - variables:
+        metric: "{{ trigger.id }}"
+        new_value: "{{ trigger.to_state.state | float }}"
+        record_entity: "input_number.burnett_record_{{ metric }}_week"
+        date_entity: "input_datetime.burnett_record_{{ metric }}_week_date"
+    - condition: template
+      value_template: >-
+        {{ states(record_entity) in ['unknown', 'unavailable', 'none']
+           or new_value > states(record_entity) | float }}
+    - service: input_number.set_value
+      target:
+        entity_id: "{{ record_entity }}"
+      data:
+        value: "{{ new_value }}"
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: "{{ date_entity }}"
+      data:
+        date: "{{ now().strftime('%Y-%m-%d') }}"
+
+- id: burnett_records_update_week_low
+  alias: "Burnett Records – Update Week Low"
+  description: "Lowers this week's low-temperature record whenever it's beaten."
+  trigger:
+    - platform: state
+      entity_id: sensor.gw3000a_outdoor_temperature
+  condition:
+    - condition: template
+      value_template: >-
+        {{ trigger.to_state is not none and trigger.to_state.state not in
+           ['unknown', 'unavailable', 'none'] }}
+  action:
+    - variables:
+        new_value: "{{ trigger.to_state.state | float }}"
+    - condition: template
+      value_template: >-
+        {{ states('input_number.burnett_record_temp_low_week') in
+           ['unknown', 'unavailable', 'none']
+           or new_value < states('input_number.burnett_record_temp_low_week') | float }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_temp_low_week
+      data:
+        value: "{{ new_value }}"
+    - service: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.burnett_record_temp_low_week_date
+      data:
+        date: "{{ now().strftime('%Y-%m-%d') }}"
+- id: burnett_records_reset_month
+  alias: "Burnett Records – Reset Month"
+  description: >-
+    At midnight on the 1st of the month, starts this month's records
+    fresh from the current live readings rather than zeroing them out
+    (a reading of 0 would otherwise look like a record low).
+  trigger:
+    - platform: time
+      at: "00:00:00"
+  condition:
+    - condition: template
+      value_template: "{{ now().day == 1 }}"
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_temp_high_month
+      data:
+        value: "{{ states('sensor.gw3000a_outdoor_temperature') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_temp_low_month
+      data:
+        value: "{{ states('sensor.gw3000a_outdoor_temperature') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_wind_gust_month
+      data:
+        value: "{{ states('sensor.gw3000a_max_daily_gust') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_rainfall_month
+      data:
+        value: "{{ states('sensor.gw3000a_daily_rain') | float(0) }}"
+    - service: input_datetime.set_datetime
+      target:
+        entity_id:
+          - input_datetime.burnett_record_temp_high_month_date
+          - input_datetime.burnett_record_temp_low_month_date
+          - input_datetime.burnett_record_wind_gust_month_date
+          - input_datetime.burnett_record_rainfall_month_date
+      data:
+        date: "{{ now().strftime('%Y-%m-%d') }}"
+
+- id: burnett_records_reset_week
+  alias: "Burnett Records – Reset Week"
+  description: >-
+    At midnight every Monday, starts this week's records fresh from
+    the current live readings, same reasoning as the month reset.
+  trigger:
+    - platform: time
+      at: "00:00:00"
+  condition:
+    - condition: template
+      value_template: "{{ now().weekday() == 0 }}"
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_temp_high_week
+      data:
+        value: "{{ states('sensor.gw3000a_outdoor_temperature') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_temp_low_week
+      data:
+        value: "{{ states('sensor.gw3000a_outdoor_temperature') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_wind_gust_week
+      data:
+        value: "{{ states('sensor.gw3000a_max_daily_gust') | float(0) }}"
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_rainfall_week
+      data:
+        value: "{{ states('sensor.gw3000a_daily_rain') | float(0) }}"
+    - service: input_datetime.set_datetime
+      target:
+        entity_id:
+          - input_datetime.burnett_record_temp_high_week_date
+          - input_datetime.burnett_record_temp_low_week_date
+          - input_datetime.burnett_record_wind_gust_week_date
+          - input_datetime.burnett_record_rainfall_week_date
+      data:
+        date: "{{ now().strftime('%Y-%m-%d') }}"
