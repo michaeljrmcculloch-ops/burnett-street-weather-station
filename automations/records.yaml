@@ -44,6 +44,10 @@
         date_entity: "input_datetime.burnett_record_{{ metric }}_alltime_date"
     - condition: template
       value_template: >-
+        {% set bounds = {'temp_high': (-30, 45), 'wind_gust': (0, 200), 'rainfall': (0, 300)} %}
+        {{ new_value >= bounds[metric][0] and new_value <= bounds[metric][1] }}
+    - condition: template
+      value_template: >-
         {{ states(record_entity) in ['unknown', 'unavailable', 'none']
            or new_value > states(record_entity) | float }}
     - service: input_number.set_value
@@ -72,6 +76,8 @@
     - variables:
         new_value: "{{ trigger.to_state.state | float }}"
     - condition: template
+      value_template: "{{ new_value >= -30 and new_value <= 45 }}"
+    - condition: template
       value_template: >-
         {{ states('input_number.burnett_record_temp_low_alltime') in
            ['unknown', 'unavailable', 'none']
@@ -86,6 +92,7 @@
         entity_id: input_datetime.burnett_record_temp_low_alltime_date
       data:
         date: "{{ now().strftime('%Y-%m-%d') }}"
+
 - id: burnett_records_update_month_highs
   alias: "Burnett Records – Update Month Highs"
   description: "Same as the all-time version, but against this month's record."
@@ -110,6 +117,10 @@
         new_value: "{{ trigger.to_state.state | float }}"
         record_entity: "input_number.burnett_record_{{ metric }}_month"
         date_entity: "input_datetime.burnett_record_{{ metric }}_month_date"
+    - condition: template
+      value_template: >-
+        {% set bounds = {'temp_high': (-30, 45), 'wind_gust': (0, 200), 'rainfall': (0, 300)} %}
+        {{ new_value >= bounds[metric][0] and new_value <= bounds[metric][1] }}
     - condition: template
       value_template: >-
         {{ states(record_entity) in ['unknown', 'unavailable', 'none']
@@ -140,6 +151,8 @@
     - variables:
         new_value: "{{ trigger.to_state.state | float }}"
     - condition: template
+      value_template: "{{ new_value >= -30 and new_value <= 45 }}"
+    - condition: template
       value_template: >-
         {{ states('input_number.burnett_record_temp_low_month') in
            ['unknown', 'unavailable', 'none']
@@ -154,6 +167,7 @@
         entity_id: input_datetime.burnett_record_temp_low_month_date
       data:
         date: "{{ now().strftime('%Y-%m-%d') }}"
+
 - id: burnett_records_update_week_highs
   alias: "Burnett Records – Update Week Highs"
   description: "Same as the all-time version, but against this week's record."
@@ -178,6 +192,10 @@
         new_value: "{{ trigger.to_state.state | float }}"
         record_entity: "input_number.burnett_record_{{ metric }}_week"
         date_entity: "input_datetime.burnett_record_{{ metric }}_week_date"
+    - condition: template
+      value_template: >-
+        {% set bounds = {'temp_high': (-30, 45), 'wind_gust': (0, 200), 'rainfall': (0, 300)} %}
+        {{ new_value >= bounds[metric][0] and new_value <= bounds[metric][1] }}
     - condition: template
       value_template: >-
         {{ states(record_entity) in ['unknown', 'unavailable', 'none']
@@ -208,6 +226,8 @@
     - variables:
         new_value: "{{ trigger.to_state.state | float }}"
     - condition: template
+      value_template: "{{ new_value >= -30 and new_value <= 45 }}"
+    - condition: template
       value_template: >-
         {{ states('input_number.burnett_record_temp_low_week') in
            ['unknown', 'unavailable', 'none']
@@ -222,6 +242,7 @@
         entity_id: input_datetime.burnett_record_temp_low_week_date
       data:
         date: "{{ now().strftime('%Y-%m-%d') }}"
+
 - id: burnett_records_reset_month
   alias: "Burnett Records – Reset Month"
   description: >-
@@ -239,22 +260,26 @@
       target:
         entity_id: input_number.burnett_record_temp_high_month
       data:
-        value: "{{ states('sensor.gw3000a_outdoor_temperature') | float(0) }}"
+        value: >-
+          {{ [[states('sensor.gw3000a_outdoor_temperature') | float(0), -30] | max, 45] | min }}
     - service: input_number.set_value
       target:
         entity_id: input_number.burnett_record_temp_low_month
       data:
-        value: "{{ states('sensor.gw3000a_outdoor_temperature') | float(0) }}"
+        value: >-
+          {{ [[states('sensor.gw3000a_outdoor_temperature') | float(0), -30] | max, 45] | min }}
     - service: input_number.set_value
       target:
         entity_id: input_number.burnett_record_wind_gust_month
       data:
-        value: "{{ states('sensor.gw3000a_max_daily_gust') | float(0) }}"
+        value: >-
+          {{ [[states('sensor.gw3000a_max_daily_gust') | float(0), 0] | max, 200] | min }}
     - service: input_number.set_value
       target:
         entity_id: input_number.burnett_record_rainfall_month
       data:
-        value: "{{ states('sensor.gw3000a_daily_rain') | float(0) }}"
+        value: >-
+          {{ [[states('sensor.gw3000a_daily_rain') | float(0), 0] | max, 300] | min }}
     - service: input_datetime.set_datetime
       target:
         entity_id:
@@ -281,22 +306,26 @@
       target:
         entity_id: input_number.burnett_record_temp_high_week
       data:
-        value: "{{ states('sensor.gw3000a_outdoor_temperature') | float(0) }}"
+        value: >-
+          {{ [[states('sensor.gw3000a_outdoor_temperature') | float(0), -30] | max, 45] | min }}
     - service: input_number.set_value
       target:
         entity_id: input_number.burnett_record_temp_low_week
       data:
-        value: "{{ states('sensor.gw3000a_outdoor_temperature') | float(0) }}"
+        value: >-
+          {{ [[states('sensor.gw3000a_outdoor_temperature') | float(0), -30] | max, 45] | min }}
     - service: input_number.set_value
       target:
         entity_id: input_number.burnett_record_wind_gust_week
       data:
-        value: "{{ states('sensor.gw3000a_max_daily_gust') | float(0) }}"
+        value: >-
+          {{ [[states('sensor.gw3000a_max_daily_gust') | float(0), 0] | max, 200] | min }}
     - service: input_number.set_value
       target:
         entity_id: input_number.burnett_record_rainfall_week
       data:
-        value: "{{ states('sensor.gw3000a_daily_rain') | float(0) }}"
+        value: >-
+          {{ [[states('sensor.gw3000a_daily_rain') | float(0), 0] | max, 300] | min }}
     - service: input_datetime.set_datetime
       target:
         entity_id:
