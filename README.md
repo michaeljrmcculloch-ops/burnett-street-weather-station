@@ -8,8 +8,8 @@ mechanical needle movement, built as modular SVG custom cards.
 
 ## Status
 
-🚧 **v0.3 "Showers"** — rain gauge, UV index, and solar radiation
-gauges added alongside the v0.1/v0.2 instruments. Eight gauges total.
+🚧 **v0.4 "Frost"** — a ledger-style Records card added alongside the
+eight v0.1–v0.3 gauges. Nine cards total.
 See [`CHANGELOG.md`](CHANGELOG.md) for the full roadmap.
 
 ## What's in this release
@@ -49,6 +49,12 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full roadmap.
 **Solar radiation**
 - Numbered dial with a subtle decorative sunburst accent
 
+**Records**
+- Ledger-style table of all-time / this-month / this-week highs (and
+  the lowest temperature), each with the date it was set
+- Driven by `input_number`/`input_datetime` helpers and automations
+  rather than a live sensor — see [`docs/records.md`](docs/records.md)
+
 **All gauges**
 - Tap the dial to open Home Assistant's built-in history graph
 - Configurable plaque (station name), independent of the project name
@@ -64,11 +70,14 @@ A ready-to-paste example is in [`examples/dashboard.yaml`](examples/dashboard.ya
 ## Repository structure
 
 ```
-docs/        Guides and reference documentation
-src/         The custom card source code
-assets/      Images, icons, screenshots
-themes/      Theme definitions (classic_oak, observatory, ...)
-examples/    Ready-to-use Home Assistant dashboard configs
+docs/          Guides and reference documentation
+src/           The custom card source code
+dist/          Bundled resource file (what HACS actually installs)
+helpers/       input_number/input_datetime helper definitions
+automations/   Automation YAML for cards that need it (e.g. Records)
+assets/        Images, icons, screenshots
+themes/        Theme definitions (classic_oak, observatory, ...)
+examples/      Ready-to-use Home Assistant dashboard configs
 ```
 
 ## License
