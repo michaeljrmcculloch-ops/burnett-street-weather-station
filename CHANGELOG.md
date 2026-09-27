@@ -6,6 +6,16 @@ weather description.
 
 ## [Unreleased]
 
+## [0.4.0] "Frost" — Complete
+### Added
+- Records card: ledger-style table of all-time / this-month / this-week
+  highest temperature, lowest temperature, highest gust and wettest day,
+  each with the date the record was set
+- 24 `input_number`/`input_datetime` helpers and 8 automations that keep
+  the Records card's data up to date — see [`docs/records.md`](docs/records.md)
+- Bundled `dist/burnett-vintage-weather-station.js` now includes all
+  nine cards
+
 ## [0.3.0] "Showers" — Complete
 ### Added
 - Animated SVG rain gauge (graduated tube for daily total, rate
