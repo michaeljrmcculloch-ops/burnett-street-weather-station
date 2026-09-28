@@ -1,0 +1,308 @@
+# Burnett Street Weather Station — Alert automations (v0.4 "Frost" — Telegram alerts)
+#
+# Thirteen automations: nine send alerts via the new dedicated Telegram bot
+# ("Stuartfield Weather station" / @Stuartfieldstationbot), and four keep the
+# "today" high/low temperature helpers up to date so the 8:30am review has
+# something to report.
+#
+# All alerts target chat_id 8090608278 (Michael) via the new bot's own
+# Telegram Bot integration in HA — separate from the existing house bot.
+#
+# Source sensors used (all confirmed real GW3000A entities):
+#   sensor.gw3000a_outdoor_temperature
+#   sensor.gw3000a_wind_gust            — live instantaneous gust
+#   sensor.gw3000a_max_daily_gust       — hardware's own daily peak gust
+#   sensor.gw3000a_daily_rain           — today's rainfall total so far
+#   sensor.gw3000a_relative_pressure
+#
+# New helpers required (see configuration.yaml):
+#   input_number.burnett_record_temp_high_today
+#   input_number.burnett_record_temp_low_today
+#   input_number.burnett_alert_pressure_3h_ago
+#   input_boolean.burnett_alert_wind_active
+#   binary_sensor.burnett_weather_station_online (template, see configuration.yaml)
+
+- id: burnett_alert_frost
+  alias: "Burnett Alert – Frost Warning"
+  description: "Notifies when outdoor temperature drops to 0°C or below."
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.gw3000a_outdoor_temperature
+      below: 0.1
+      for:
+        minutes: 2
+  condition:
+    - condition: template
+      value_template: "{{ states('sensor.gw3000a_outdoor_temperature') | float(99) >= -30 }}"
+  action:
+    - service: telegram_bot.send_message
+      data:
+        target: 8090608278
+        message: >-
+          ❄️ Frost warning — Stuartfield is at {{ states('sensor.gw3000a_outdoor_temperature') }}°C.
+
+- id: burnett_alert_hard_frost
+  alias: "Burnett Alert – Hard Frost Warning"
+  description: "Notifies when outdoor temperature drops to -5°C or below."
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.gw3000a_outdoor_temperature
+      below: -4.9
+      for:
+        minutes: 2
+  condition:
+    - condition: template
+      value_template: "{{ states('sensor.gw3000a_outdoor_temperature') | float(99) >= -30 }}"
+  action:
+    - service: telegram_bot.send_message
+      data:
+        target: 8090608278
+        message: >-
+          🥶 Hard frost — Stuartfield is at {{ states('sensor.gw3000a_outdoor_temperature') }}°C. Watch stock water and pipes.
+
+- id: burnett_alert_high_wind
+  alias: "Burnett Alert – High Wind"
+  description: >-
+    Notifies when wind gusts exceed 50 km/h, and marks the alert active so
+    the all-clear automation knows to watch for it easing off.
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.gw3000a_wind_gust
+      above: 50
+  condition:
+    - condition: template
+      value_template: "{{ states('sensor.gw3000a_wind_gust') | float(0) <= 200 }}"
+    - condition: state
+      entity_id: input_boolean.burnett_alert_wind_active
+      state: "off"
+  action:
+    - service: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.burnett_alert_wind_active
+    - service: telegram_bot.send_message
+      data:
+        target: 8090608278
+        message: >-
+          💨 High wind — gusts at {{ states('sensor.gw3000a_wind_gust') }} km/h at Stuartfield.
+
+- id: burnett_alert_wind_all_clear
+  alias: "Burnett Alert – Wind All Clear"
+  description: "Notifies when gusts drop back to 15 km/h or below after a high wind alert."
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.gw3000a_wind_gust
+      below: 15
+  condition:
+    - condition: state
+      entity_id: input_boolean.burnett_alert_wind_active
+      state: "on"
+  action:
+    - service: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.burnett_alert_wind_active
+    - service: telegram_bot.send_message
+      data:
+        target: 8090608278
+        message: >-
+          ✅ Wind's eased off — gusts down to {{ states('sensor.gw3000a_wind_gust') }} km/h at Stuartfield.
+
+- id: burnett_alert_new_record
+  alias: "Burnett Alert – New All-Time Record"
+  description: "Notifies whenever an all-time weather record is broken."
+  trigger:
+    - platform: state
+      entity_id: input_number.burnett_record_temp_high_alltime
+      id: "Highest Temperature"
+    - platform: state
+      entity_id: input_number.burnett_record_temp_low_alltime
+      id: "Lowest Temperature"
+    - platform: state
+      entity_id: input_number.burnett_record_wind_gust_alltime
+      id: "Highest Gust"
+    - platform: state
+      entity_id: input_number.burnett_record_rainfall_alltime
+      id: "Wettest Day"
+  condition:
+    - condition: template
+      value_template: >-
+        {{ trigger.from_state is not none and trigger.from_state.state not in
+           ['unknown', 'unavailable', 'none'] }}
+  action:
+    - variables:
+        record_name: "{{ trigger.id }}"
+        record_unit: >-
+          {% if record_name in ['Highest Temperature', 'Lowest Temperature'] %}°C{% elif record_name == 'Highest Gust' %} km/h{% else %} mm{% endif %}
+    - service: telegram_bot.send_message
+      data:
+        target: 8090608278
+        message: >-
+          🏆 New record — {{ record_name }}: {{ trigger.to_state.state }}{{ record_unit }} at Stuartfield.
+
+- id: burnett_alert_pressure_drop
+  alias: "Burnett Alert – Pressure Drop"
+  description: >-
+    Every 3 hours, compares current pressure to the reading from 3 hours ago
+    and alerts if it's dropped significantly — an early signal the weather's turning.
+  trigger:
+    - platform: time_pattern
+      hours: "/3"
+  action:
+    - variables:
+        current: "{{ states('sensor.gw3000a_relative_pressure') | float(0) }}"
+        previous: "{{ states('input_number.burnett_alert_pressure_3h_ago') | float(current) }}"
+        drop: "{{ previous - current }}"
+    - if:
+        - condition: template
+          value_template: "{{ drop >= 3 and current > 0 }}"
+      then:
+        - service: telegram_bot.send_message
+          data:
+            target: 8090608278
+            message: >-
+              📉 Pressure falling — down {{ drop | round(1) }} hPa in 3 hours, now {{ current }} hPa at Stuartfield. Weather may be turning.
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_alert_pressure_3h_ago
+      data:
+        value: "{{ current }}"
+
+- id: burnett_alert_station_offline
+  alias: "Burnett Alert – Station Offline"
+  description: "Notifies if the weather station hasn't reported fresh data in over an hour."
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.burnett_weather_station_online
+      to: "off"
+  action:
+    - service: telegram_bot.send_message
+      data:
+        target: 8090608278
+        message: >-
+          ⚠️ Stuartfield Weather Station hasn't reported in over an hour — worth checking the GW3000A and the Pi.
+
+- id: burnett_alert_station_online
+  alias: "Burnett Alert – Station Back Online"
+  description: "Notifies when the weather station starts reporting again after an offline alert."
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.burnett_weather_station_online
+      from: "off"
+      to: "on"
+  action:
+    - service: telegram_bot.send_message
+      data:
+        target: 8090608278
+        message: >-
+          ✅ Stuartfield Weather Station is back online.
+
+- id: burnett_alert_low_battery
+  alias: "Burnett Alert – Low Battery"
+  description: >-
+    Watches every battery-type sensor belonging to the weather station
+    (whatever their exact entity IDs turn out to be) and alerts when any go low.
+  trigger:
+    - platform: template
+      value_template: >-
+        {{ states.binary_sensor | selectattr('entity_id', 'search', 'gw3000a.*batt') | selectattr('state', 'eq', 'on') | list | count > 0 }}
+  action:
+    - variables:
+        low_batteries: >-
+          {{ states.binary_sensor | selectattr('entity_id', 'search', 'gw3000a.*batt') | selectattr('state', 'eq', 'on') | map(attribute='name') | list | join(', ') }}
+    - service: telegram_bot.send_message
+      data:
+        target: 8090608278
+        message: >-
+          🔋 Low battery — {{ low_batteries }} (Stuartfield Weather Station).
+
+- id: burnett_records_update_today_high
+  alias: "Burnett Records – Update Today's High"
+  description: "Raises today's high-temperature reading whenever a warmer reading comes in."
+  trigger:
+    - platform: state
+      entity_id: sensor.gw3000a_outdoor_temperature
+  condition:
+    - condition: template
+      value_template: >-
+        {{ trigger.to_state is not none and trigger.to_state.state not in
+           ['unknown', 'unavailable', 'none'] }}
+  action:
+    - variables:
+        new_value: "{{ trigger.to_state.state | float }}"
+    - condition: template
+      value_template: "{{ new_value >= -30 and new_value <= 45 }}"
+    - condition: template
+      value_template: >-
+        {{ states('input_number.burnett_record_temp_high_today') in
+           ['unknown', 'unavailable', 'none']
+           or new_value > states('input_number.burnett_record_temp_high_today') | float }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_temp_high_today
+      data:
+        value: "{{ new_value }}"
+
+- id: burnett_records_update_today_low
+  alias: "Burnett Records – Update Today's Low"
+  description: "Lowers today's low-temperature reading whenever a colder reading comes in."
+  trigger:
+    - platform: state
+      entity_id: sensor.gw3000a_outdoor_temperature
+  condition:
+    - condition: template
+      value_template: >-
+        {{ trigger.to_state is not none and trigger.to_state.state not in
+           ['unknown', 'unavailable', 'none'] }}
+  action:
+    - variables:
+        new_value: "{{ trigger.to_state.state | float }}"
+    - condition: template
+      value_template: "{{ new_value >= -30 and new_value <= 45 }}"
+    - condition: template
+      value_template: >-
+        {{ states('input_number.burnett_record_temp_low_today') in
+           ['unknown', 'unavailable', 'none']
+           or new_value < states('input_number.burnett_record_temp_low_today') | float }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_temp_low_today
+      data:
+        value: "{{ new_value }}"
+
+- id: burnett_records_reset_today
+  alias: "Burnett Records – Reset Today"
+  description: >-
+    At midnight, starts today's high/low fresh from the current live reading
+    (same reasoning as the month/week resets — avoids 0 looking like a record).
+  trigger:
+    - platform: time
+      at: "00:00:00"
+  action:
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_temp_high_today
+      data:
+        value: >-
+          {{ [[states('sensor.gw3000a_outdoor_temperature') | float(0), -30] | max, 45] | min }}
+    - service: input_number.set_value
+      target:
+        entity_id: input_number.burnett_record_temp_low_today
+      data:
+        value: >-
+          {{ [[states('sensor.gw3000a_outdoor_temperature') | float(0), -30] | max, 45] | min }}
+
+- id: burnett_daily_weather_review
+  alias: "Burnett Alert – 8:30am Daily Review"
+  description: "Sends a morning summary of temperature, rain, wind and pressure so far today."
+  trigger:
+    - platform: time
+      at: "08:30:00"
+  action:
+    - service: telegram_bot.send_message
+      data:
+        target: 8090608278
+        message: >-
+          ☀️ Stuartfield Weather Station — overnight to now:
+          High {{ states('input_number.burnett_record_temp_high_today') }}°C · Low {{ states('input_number.burnett_record_temp_low_today') }}°C
+          Rain so far: {{ states('sensor.gw3000a_daily_rain') }}mm
+          Max gust so far: {{ states('sensor.gw3000a_max_daily_gust') }} km/h
+          Pressure: {{ states('sensor.gw3000a_relative_pressure') }} hPa
