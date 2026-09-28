@@ -1,9 +1,10 @@
 # Burnett Street Weather Station — Alert automations (v0.4 "Frost" — Telegram alerts)
 #
-# Thirteen automations: nine send alerts via the new dedicated Telegram bot
-# ("Stuartfield Weather station" / @Stuartfieldstationbot), and four keep the
+# Fourteen automations: ten send alerts via the new dedicated Telegram bot
+# ("Stuartfield Weather station" / @Stuartfieldstationbot), four keep the
 # "today" high/low temperature helpers up to date so the 8:30am review has
-# something to report.
+# something to report, and one (/report) replies on demand with a live
+# snapshot — same idea as the house bot's /key, restricted to Michael's chat.
 #
 # All alerts target chat_id 8090608278 (Michael) via the new bot's own
 # Telegram Bot integration in HA — separate from the existing house bot.
@@ -320,8 +321,42 @@
         config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
         target: 8090608278
         message: >-
-          ☀️ Stuartfield Weather Station — overnight to now:
-          High {{ states('input_number.burnett_record_temp_high_today') }}°C · Low {{ states('input_number.burnett_record_temp_low_today') }}°C
-          Rain so far: {{ states('sensor.gw3000a_daily_rain') }}mm
-          Max gust so far: {{ states('sensor.gw3000a_max_daily_gust') }} km/h
-          Pressure: {{ states('sensor.gw3000a_relative_pressure') }} hPa
+          {%- set lines = ['☀️ *Stuartfield Weather Station* — overnight to now:', ''] -%}
+          {%- set lines = lines + ['High ' ~ states('input_number.burnett_record_temp_high_today') ~ '°C · Low ' ~ states('input_number.burnett_record_temp_low_today') ~ '°C'] -%}
+          {%- set lines = lines + ['Rain so far: ' ~ states('sensor.gw3000a_daily_rain') ~ 'mm'] -%}
+          {%- set lines = lines + ['Max gust so far: ' ~ states('sensor.gw3000a_max_daily_gust') ~ ' km/h'] -%}
+          {%- set lines = lines + ['Pressure: ' ~ states('sensor.gw3000a_relative_pressure') ~ ' hPa'] -%}
+          {{ lines | join('\n') }}
+
+- id: burnett_alert_report_command
+  alias: "Burnett Alert – /report Command"
+  description: >-
+    Telegram command for the weather bot: replies with a live snapshot of
+    current readings (not "today so far" like the 8:30am review — this is
+    right now). Restricted to Michael's chat.
+  triggers:
+    - trigger: event
+      event_type: telegram_command
+      event_data:
+        command: /report
+  conditions:
+    - condition: template
+      value_template: "{{ trigger.event.data.chat_id == 8090608278 }}"
+  actions:
+    - action: telegram_bot.send_message
+      data:
+        config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
+        chat_id: 8090608278
+        message: >-
+          {%- set dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'] -%}
+          {%- set deg = states('sensor.gw3000a_wind_direction') | float(0) -%}
+          {%- set compass = dirs[ ((deg / 22.5) + 0.5) | int % 16 ] -%}
+          {%- set lines = ['🌤️ *Stuartfield Weather Station — Live Report*', ''] -%}
+          {%- set lines = lines + ['Temp: ' ~ states('sensor.gw3000a_outdoor_temperature') ~ '°C · Humidity: ' ~ states('sensor.gw3000a_humidity') ~ '%'] -%}
+          {%- set lines = lines + ['Wind: ' ~ states('sensor.gw3000a_wind_speed') ~ ' km/h, gusting ' ~ states('sensor.gw3000a_wind_gust') ~ ' km/h from ' ~ compass] -%}
+          {%- set lines = lines + ['Rain today: ' ~ states('sensor.gw3000a_daily_rain') ~ 'mm · Rate: ' ~ states('sensor.gw3000a_rain_rate') ~ 'mm/h'] -%}
+          {%- set lines = lines + ['Pressure: ' ~ states('sensor.gw3000a_relative_pressure') ~ ' hPa'] -%}
+          {%- set lines = lines + ['UV index: ' ~ states('sensor.gw3000a_uv_index') ~ ' · Solar: ' ~ states('sensor.gw3000a_solar_radiation') ~ ' W/m²'] -%}
+          {%- set lines = lines + ['', 'As of ' ~ now().strftime('%H:%M')] -%}
+          {{ lines | join('\n') }}
+  mode: single
