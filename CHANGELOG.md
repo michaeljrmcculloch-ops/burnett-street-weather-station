@@ -35,7 +35,7 @@ weather description.
   all-clear once gusts ease off, a notification on any new all-time
   record, a 3-hourly pressure-drop check, station offline/back-online,
   low battery, an 8:30am daily review, and a `/report` command for an
-on-demand live snapshot — see [`automations/alerts.yaml`](automations/alerts.yaml)
+  on-demand live snapshot — see [`automations/alerts.yaml`](automations/alerts.yaml)
   (superseded in 0.5.0, see below), helpers in
   [`helpers/alerts.yaml`](helpers/alerts.yaml)
 - Bundled `dist/burnett-vintage-weather-station.js` now includes all
