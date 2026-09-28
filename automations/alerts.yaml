@@ -1,10 +1,14 @@
-# Burnett Street Weather Station — Alert automations (v0.4 "Frost" — Telegram alerts)
+# Burnett Street Weather Station — Alert automations (v0.5 "Station Keeper")
 #
-# Fourteen automations: ten send alerts via the new dedicated Telegram bot
-# ("Stuartfield Weather station" / @Stuartfieldstationbot), four keep the
-# "today" high/low temperature helpers up to date so the 8:30am review has
-# something to report, and one (/report) replies on demand with a live
-# snapshot — same idea as the house bot's /key, restricted to Michael's chat.
+# Fifteen automations: nine send one-shot alerts via the new dedicated
+# Telegram bot ("Stuartfield Weather station" / @Stuartfieldstationbot), four
+# keep the "today" high/low temperature helpers up to date, one (/report)
+# replies on demand with a live snapshot (same idea as the house bot's /key,
+# restricted to Michael's chat), and two are the "Station Keeper" — a prose
+# logbook entry generated from live sensor readings with no internet or LLM
+# dependency (rule-based Jinja phrase banks + `random`), sent at 07:00 (dawn
+# watch, framed on the overnight low) and 18:00 (evening watch, framed on
+# today's high and totals). These replace the old numeric 8:30am review.
 #
 # All alerts target chat_id 8090608278 (Michael) via the new bot's own
 # Telegram Bot integration in HA — separate from the existing house bot.
@@ -48,7 +52,7 @@
     - service: telegram_bot.send_message
       data:
         config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
-        target: 8090608278
+        chat_id: 8090608278
         message: >-
           ❄️ Frost warning — Stuartfield is at {{ states('sensor.gw3000a_outdoor_temperature') }}°C.
 
@@ -68,7 +72,7 @@
     - service: telegram_bot.send_message
       data:
         config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
-        target: 8090608278
+        chat_id: 8090608278
         message: >-
           🥶 Hard frost — Stuartfield is at {{ states('sensor.gw3000a_outdoor_temperature') }}°C. Watch stock water and pipes.
 
@@ -94,7 +98,7 @@
     - service: telegram_bot.send_message
       data:
         config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
-        target: 8090608278
+        chat_id: 8090608278
         message: >-
           💨 High wind — gusts at {{ states('sensor.gw3000a_wind_gust') }} km/h at Stuartfield.
 
@@ -116,7 +120,7 @@
     - service: telegram_bot.send_message
       data:
         config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
-        target: 8090608278
+        chat_id: 8090608278
         message: >-
           ✅ Wind's eased off — gusts down to {{ states('sensor.gw3000a_wind_gust') }} km/h at Stuartfield.
 
@@ -149,7 +153,7 @@
     - service: telegram_bot.send_message
       data:
         config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
-        target: 8090608278
+        chat_id: 8090608278
         message: >-
           🏆 New record — {{ record_name }}: {{ trigger.to_state.state }}{{ record_unit }} at Stuartfield.
 
@@ -173,7 +177,7 @@
         - service: telegram_bot.send_message
           data:
             config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
-            target: 8090608278
+            chat_id: 8090608278
             message: >-
               📉 Pressure falling — down {{ drop | round(1) }} hPa in 3 hours, now {{ current }} hPa at Stuartfield. Weather may be turning.
     - service: input_number.set_value
@@ -193,7 +197,7 @@
     - service: telegram_bot.send_message
       data:
         config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
-        target: 8090608278
+        chat_id: 8090608278
         message: >-
           ⚠️ Stuartfield Weather Station hasn't reported in over an hour — worth checking the GW3000A and the Pi.
 
@@ -209,7 +213,7 @@
     - service: telegram_bot.send_message
       data:
         config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
-        target: 8090608278
+        chat_id: 8090608278
         message: >-
           ✅ Stuartfield Weather Station is back online.
 
@@ -229,7 +233,7 @@
     - service: telegram_bot.send_message
       data:
         config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
-        target: 8090608278
+        chat_id: 8090608278
         message: >-
           🔋 Low battery — {{ low_batteries }} (Stuartfield Weather Station).
 
@@ -309,24 +313,154 @@
         value: >-
           {{ [[states('sensor.gw3000a_outdoor_temperature') | float(0), -30] | max, 45] | min }}
 
-- id: burnett_daily_weather_review
-  alias: "Burnett Alert – 8:30am Daily Review"
-  description: "Sends a morning summary of temperature, rain, wind and pressure so far today."
+- id: burnett_station_keeper_morning
+  alias: "Burnett Station Keeper – Morning Log"
+  description: >-
+    Replaces the old numeric 8:30am review. Prose "logbook" entry generated
+    entirely from live sensor states — no internet dependency, no external
+    LLM call, just Jinja phrase banks picked with `random` for variety.
+    Frames around the overnight low.
   trigger:
     - platform: time
-      at: "08:30:00"
+      at: "07:00:00"
   action:
     - service: telegram_bot.send_message
       data:
         config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
-        target: 8090608278
+        chat_id: 8090608278
         message: >-
-          {%- set lines = ['☀️ *Stuartfield Weather Station* — overnight to now:', ''] -%}
-          {%- set lines = lines + ['High ' ~ states('input_number.burnett_record_temp_high_today') ~ '°C · Low ' ~ states('input_number.burnett_record_temp_low_today') ~ '°C'] -%}
-          {%- set lines = lines + ['Rain so far: ' ~ states('sensor.gw3000a_daily_rain') ~ 'mm'] -%}
-          {%- set lines = lines + ['Max gust so far: ' ~ states('sensor.gw3000a_max_daily_gust') ~ ' km/h'] -%}
-          {%- set lines = lines + ['Pressure: ' ~ states('sensor.gw3000a_relative_pressure') ~ ' hPa'] -%}
-          {{ lines | join('\n') }}
+          {%- set temp = states('sensor.gw3000a_outdoor_temperature') | float(0) -%}
+          {%- set low = states('input_number.burnett_record_temp_low_today') | float(temp) -%}
+          {%- set gust = states('sensor.gw3000a_wind_gust') | float(0) -%}
+          {%- set rain = states('sensor.gw3000a_daily_rain') | float(0) -%}
+          {%- set pressure = states('sensor.gw3000a_relative_pressure') | float(0) -%}
+          {%- set pressure_prev = states('input_number.burnett_alert_pressure_3h_ago') | float(pressure) -%}
+          {%- set pdiff = pressure - pressure_prev -%}
+          {%- if low < -5 -%}
+            {%- set temp_phrase = ['A hard frost gripped the yard overnight.', 'Overnight brought a proper hard frost.'] | random -%}
+          {%- elif low < 0 -%}
+            {%- set temp_phrase = ['Frost settled over Stuartfield overnight.', 'A good frost overnight, everything rimed white by dawn.'] | random -%}
+          {%- elif low < 5 -%}
+            {%- set temp_phrase = ['A sharp, cold start to the day.', 'A chilly one this morning, the cold biting at dawn.'] | random -%}
+          {%- elif low < 10 -%}
+            {%- set temp_phrase = ['A cool, fresh start to the day.', 'Nothing too testing this morning, just a cool edge to the air.'] | random -%}
+          {%- elif low < 15 -%}
+            {%- set temp_phrase = ['A mild start to the day.', 'An easy, gentle morning.'] | random -%}
+          {%- else -%}
+            {%- set temp_phrase = ['A warm start already, more like summer than expected.', 'Unusually warm for this hour.'] | random -%}
+          {%- endif -%}
+          {%- if gust < 5 -%}
+            {%- set wind_phrase = ['Barely a breath of wind about.', 'The air is dead still.'] | random -%}
+          {%- elif gust < 15 -%}
+            {%- set wind_phrase = ['A light breeze drifting through.', 'Just a gentle breeze this morning.'] | random -%}
+          {%- elif gust < 30 -%}
+            {%- set wind_phrase = ['A steady breeze keeping things moving.', 'A brisk wind about already.'] | random -%}
+          {%- elif gust < 50 -%}
+            {%- set wind_phrase = ['Wind picking up sharply — worth minding today.', 'A stiff wind blowing, best secure loose gear.'] | random -%}
+          {%- else -%}
+            {%- set wind_phrase = ['Gale-force gusts battering the yard — take care out there.', 'The wind is up hard this morning, proper gale conditions.'] | random -%}
+          {%- endif -%}
+          {%- if rain <= 0 -%}
+            {%- set rain_phrase = ['Dry underfoot so far.', 'Not a drop fallen yet.'] | random -%}
+          {%- elif rain < 2 -%}
+            {%- set rain_phrase = ['Just a spit of rain overnight.', 'A light dampness in the air, barely enough to call rain.'] | random -%}
+          {%- elif rain < 10 -%}
+            {%- set rain_phrase = (['Steady rain through the night — ', 'A fair soaking overnight, '] | random) ~ rain ~ 'mm logged.' -%}
+          {%- else -%}
+            {%- set rain_phrase = (['Heavy rain overnight — ', 'A proper downpour through the night, '] | random) ~ rain ~ 'mm and counting.' -%}
+          {%- endif -%}
+          {%- if pdiff <= -3 -%}
+            {%- set pressure_phrase = ["Pressure's falling quick — weather's on the turn.", 'A sharp drop in pressure; change is coming.'] | random -%}
+          {%- elif pdiff < -0.5 -%}
+            {%- set pressure_phrase = ['Pressure easing back a touch.', 'A gentle fall in pressure.'] | random -%}
+          {%- elif pdiff < 0.5 -%}
+            {%- set pressure_phrase = ['Pressure holding steady, no sign of change.', 'Steady pressure, settled conditions likely.'] | random -%}
+          {%- else -%}
+            {%- set pressure_phrase = ["Pressure's climbing — set fair weather likely holding.", 'Rising pressure, a good sign for the day ahead.'] | random -%}
+          {%- endif -%}
+          {%- set parts = [
+            "📖 *Station Keeper's Log* — " ~ now().strftime('%A, %d %B') ~ ', dawn watch.',
+            temp_phrase,
+            (low | round(1) | string) ~ '°C overnight, ' ~ (temp | round(1) | string) ~ '°C now.',
+            wind_phrase,
+            rain_phrase,
+            pressure_phrase
+          ] -%}
+          {{ parts | join(' ') }}
+
+- id: burnett_station_keeper_evening
+  alias: "Burnett Station Keeper – Evening Log"
+  description: >-
+    Evening companion to the morning log. Same rule-based Jinja approach,
+    framed around today's high and the day's totals rather than the
+    overnight low.
+  trigger:
+    - platform: time
+      at: "18:00:00"
+  action:
+    - service: telegram_bot.send_message
+      data:
+        config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
+        chat_id: 8090608278
+        message: >-
+          {%- set temp = states('sensor.gw3000a_outdoor_temperature') | float(0) -%}
+          {%- set high = states('input_number.burnett_record_temp_high_today') | float(temp) -%}
+          {%- set gust = states('sensor.gw3000a_max_daily_gust') | float(0) -%}
+          {%- set rain = states('sensor.gw3000a_daily_rain') | float(0) -%}
+          {%- set pressure = states('sensor.gw3000a_relative_pressure') | float(0) -%}
+          {%- set pressure_prev = states('input_number.burnett_alert_pressure_3h_ago') | float(pressure) -%}
+          {%- set pdiff = pressure - pressure_prev -%}
+          {%- if high < 0 -%}
+            {%- set temp_phrase = ['A bitter day throughout, never above freezing.', 'The cold held its grip all day.'] | random -%}
+          {%- elif high < 5 -%}
+            {%- set temp_phrase = ['A cold day from start to finish.', 'Little warmth to be had today.'] | random -%}
+          {%- elif high < 10 -%}
+            {%- set temp_phrase = ['A cool, grey sort of day.', 'Nothing remarkable in the temperature today.'] | random -%}
+          {%- elif high < 15 -%}
+            {%- set temp_phrase = ['A mild, easy day.', 'Pleasant conditions held through the day.'] | random -%}
+          {%- elif high < 20 -%}
+            {%- set temp_phrase = ['A properly warm day for Stuartfield.', 'Good warmth in the air today.'] | random -%}
+          {%- else -%}
+            {%- set temp_phrase = ['A hot one today, well above the seasonal average.', 'Real summer warmth today.'] | random -%}
+          {%- endif -%}
+          {%- if gust < 5 -%}
+            {%- set wind_phrase = ['Calm throughout, barely a breath all day.', 'A still day, nothing stirring.'] | random -%}
+          {%- elif gust < 15 -%}
+            {%- set wind_phrase = ['Light breezes drifted through the day.', 'A gentle day for wind.'] | random -%}
+          {%- elif gust < 30 -%}
+            {%- set wind_phrase = ['A steady breeze held through the day.', 'Breezy conditions throughout.'] | random -%}
+          {%- elif gust < 50 -%}
+            {%- set wind_phrase = (['Wind picked up sharply at points today — ', 'A blustery day, gusting to '] | random) ~ (gust | round(0) | string) ~ ' km/h at the peak.' -%}
+          {%- else -%}
+            {%- set wind_phrase = (['Gale-force gusts battered the yard today — ', 'A wild day for wind, gusting to '] | random) ~ (gust | round(0) | string) ~ ' km/h. Mind anything loose overnight.' -%}
+          {%- endif -%}
+          {%- if rain <= 0 -%}
+            {%- set rain_phrase = ['Dry all day, not a drop fallen.', 'No rain to speak of today.'] | random -%}
+          {%- elif rain < 2 -%}
+            {%- set rain_phrase = ['Just a trace of rain today.', 'Barely enough rain to log.'] | random -%}
+          {%- elif rain < 10 -%}
+            {%- set rain_phrase = (['Steady rain through the day — ', ''] | random) ~ rain ~ 'mm logged, a fair soaking.' -%}
+          {%- else -%}
+            {%- set rain_phrase = (['A proper downpour today — ', 'Heavy rain throughout, '] | random) ~ rain ~ 'mm in the gauge.' -%}
+          {%- endif -%}
+          {%- if pdiff <= -3 -%}
+            {%- set pressure_phrase = ["Pressure's been falling — keep an eye out overnight.", 'A notable drop in pressure through the afternoon; change may be coming.'] | random -%}
+          {%- elif pdiff < -0.5 -%}
+            {%- set pressure_phrase = ['Pressure easing back a touch this evening.', 'A gentle fall in pressure.'] | random -%}
+          {%- elif pdiff < 0.5 -%}
+            {%- set pressure_phrase = ['Pressure steady this evening, settled conditions likely overnight.', 'Holding steady — a quiet night expected.'] | random -%}
+          {%- else -%}
+            {%- set pressure_phrase = ["Pressure's on the rise — fair conditions likely holding.", 'Climbing pressure this evening, a good sign.'] | random -%}
+          {%- endif -%}
+          {%- set parts = [
+            "📖 *Station Keeper's Log* — " ~ now().strftime('%A, %d %B') ~ ', evening watch.',
+            temp_phrase,
+            'Topped out at ' ~ (high | round(1) | string) ~ '°C today, ' ~ (temp | round(1) | string) ~ '°C now.',
+            wind_phrase,
+            rain_phrase,
+            pressure_phrase
+          ] -%}
+          {{ parts | join(' ') }}
 
 - id: burnett_alert_report_command
   alias: "Burnett Alert – /report Command"
