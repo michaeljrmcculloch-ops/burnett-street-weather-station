@@ -13,6 +13,13 @@ weather description.
   each with the date the record was set
 - 24 `input_number`/`input_datetime` helpers and 8 automations that keep
   the Records card's data up to date — see [`docs/records.md`](docs/records.md)
+- Telegram weather alerts via a dedicated bot (separate from any existing
+  house-automation bot): frost and hard frost warnings, high wind with an
+  all-clear once gusts ease off, a notification on any new all-time
+  record, a 3-hourly pressure-drop check, station offline/back-online,
+  low battery, and an 8:30am daily review — 13 automations in
+  [`automations/alerts.yaml`](automations/alerts.yaml), helpers in
+  [`helpers/alerts.yaml`](helpers/alerts.yaml)
 - Bundled `dist/burnett-vintage-weather-station.js` now includes all
   nine cards
 
