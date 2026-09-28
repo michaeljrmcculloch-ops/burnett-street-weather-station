@@ -17,7 +17,8 @@ weather description.
   house-automation bot): frost and hard frost warnings, high wind with an
   all-clear once gusts ease off, a notification on any new all-time
   record, a 3-hourly pressure-drop check, station offline/back-online,
-  low battery, and an 8:30am daily review — 13 automations in
+  low battery, an 8:30am daily review, and a `/report` command for an
+  on-demand live snapshot — 14 automations in
   [`automations/alerts.yaml`](automations/alerts.yaml), helpers in
   [`helpers/alerts.yaml`](helpers/alerts.yaml)
 - Bundled `dist/burnett-vintage-weather-station.js` now includes all
