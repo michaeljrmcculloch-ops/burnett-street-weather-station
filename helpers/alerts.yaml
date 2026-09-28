@@ -1,0 +1,60 @@
+# Burnett Street Weather Station — Alert helpers (v0.4 "Frost" — Telegram alerts)
+#
+# Backs automations/alerts.yaml. Three groups:
+#
+#   input_number  — 3 helpers: today's high/low temperature (feed the
+#                   8:30am daily review) and an internal snapshot used
+#                   to detect a significant pressure drop.
+#   input_boolean — 1 helper: tracks whether a high-wind alert is
+#                   currently active, so the all-clear only fires once
+#                   gusts genuinely drop back down.
+#   template      — 1 trigger-based binary_sensor (add this list item
+#                   to your existing top-level `template:` key, don't
+#                   create a second `template:` key) that reports
+#                   whether the station has reported fresh data in the
+#                   last hour. Re-evaluates every 5 minutes on a clock
+#                   tick rather than only when the temperature sensor
+#                   changes — otherwise it would never notice the
+#                   station going quiet.
+#
+# Merge these into your configuration.yaml alongside helpers/records.yaml
+# (or a packages/burnett_alerts.yaml file if you use packages).
+
+input_number:
+  burnett_record_temp_high_today:
+    name: "Today's High Temperature"
+    min: -50
+    max: 60
+    step: 0.1
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer-high
+  burnett_record_temp_low_today:
+    name: "Today's Low Temperature"
+    min: -50
+    max: 60
+    step: 0.1
+    unit_of_measurement: "°C"
+    icon: mdi:thermometer-low
+  burnett_alert_pressure_3h_ago:
+    name: "Pressure 3 Hours Ago (internal)"
+    min: 800
+    max: 1100
+    step: 0.1
+    unit_of_measurement: "hPa"
+    icon: mdi:gauge
+
+input_boolean:
+  burnett_alert_wind_active:
+    name: "Weather Alert: High Wind Active"
+    icon: mdi:weather-windy
+
+template:
+  - trigger:
+      - platform: time_pattern
+        minutes: "/5"
+    binary_sensor:
+      - name: "Burnett Weather Station Online"
+        unique_id: burnett_weather_station_online
+        device_class: connectivity
+        state: >-
+          {{ (now() - states.sensor.gw3000a_outdoor_temperature.last_updated).total_seconds() < 3600 }}
