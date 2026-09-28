@@ -21,6 +21,15 @@
 #   input_number.burnett_alert_pressure_3h_ago
 #   input_boolean.burnett_alert_wind_active
 #   binary_sensor.burnett_weather_station_online (template, see configuration.yaml)
+#
+# IMPORTANT if you have more than one Telegram bot configured in HA: every
+# telegram_bot.send_message call below carries a `config_entry_id` pinning
+# it to this bot's own config entry (Settings → Devices & Services → this
+# bot → note its entry ID, or build the action once in Developer Tools →
+# Actions with "Config entry ID" ticked and read it back in YAML mode).
+# Without this, HA can't tell which bot to send through once a second bot
+# exists whose allowed chat IDs overlap with the first — it fails outright
+# with "Please specify at least 1 notify entity" instead of guessing.
 
 - id: burnett_alert_frost
   alias: "Burnett Alert – Frost Warning"
@@ -37,6 +46,7 @@
   action:
     - service: telegram_bot.send_message
       data:
+        config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
         target: 8090608278
         message: >-
           ❄️ Frost warning — Stuartfield is at {{ states('sensor.gw3000a_outdoor_temperature') }}°C.
@@ -56,6 +66,7 @@
   action:
     - service: telegram_bot.send_message
       data:
+        config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
         target: 8090608278
         message: >-
           🥶 Hard frost — Stuartfield is at {{ states('sensor.gw3000a_outdoor_temperature') }}°C. Watch stock water and pipes.
@@ -81,6 +92,7 @@
         entity_id: input_boolean.burnett_alert_wind_active
     - service: telegram_bot.send_message
       data:
+        config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
         target: 8090608278
         message: >-
           💨 High wind — gusts at {{ states('sensor.gw3000a_wind_gust') }} km/h at Stuartfield.
@@ -102,6 +114,7 @@
         entity_id: input_boolean.burnett_alert_wind_active
     - service: telegram_bot.send_message
       data:
+        config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
         target: 8090608278
         message: >-
           ✅ Wind's eased off — gusts down to {{ states('sensor.gw3000a_wind_gust') }} km/h at Stuartfield.
@@ -134,6 +147,7 @@
           {% if record_name in ['Highest Temperature', 'Lowest Temperature'] %}°C{% elif record_name == 'Highest Gust' %} km/h{% else %} mm{% endif %}
     - service: telegram_bot.send_message
       data:
+        config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
         target: 8090608278
         message: >-
           🏆 New record — {{ record_name }}: {{ trigger.to_state.state }}{{ record_unit }} at Stuartfield.
@@ -157,6 +171,7 @@
       then:
         - service: telegram_bot.send_message
           data:
+            config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
             target: 8090608278
             message: >-
               📉 Pressure falling — down {{ drop | round(1) }} hPa in 3 hours, now {{ current }} hPa at Stuartfield. Weather may be turning.
@@ -176,6 +191,7 @@
   action:
     - service: telegram_bot.send_message
       data:
+        config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
         target: 8090608278
         message: >-
           ⚠️ Stuartfield Weather Station hasn't reported in over an hour — worth checking the GW3000A and the Pi.
@@ -191,6 +207,7 @@
   action:
     - service: telegram_bot.send_message
       data:
+        config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
         target: 8090608278
         message: >-
           ✅ Stuartfield Weather Station is back online.
@@ -210,6 +227,7 @@
           {{ states.binary_sensor | selectattr('entity_id', 'search', 'gw3000a.*batt') | selectattr('state', 'eq', 'on') | map(attribute='name') | list | join(', ') }}
     - service: telegram_bot.send_message
       data:
+        config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
         target: 8090608278
         message: >-
           🔋 Low battery — {{ low_batteries }} (Stuartfield Weather Station).
@@ -299,6 +317,7 @@
   action:
     - service: telegram_bot.send_message
       data:
+        config_entry_id: 01M3MJMXJPXZDDAQ1NF2HE13GW
         target: 8090608278
         message: >-
           ☀️ Stuartfield Weather Station — overnight to now:
